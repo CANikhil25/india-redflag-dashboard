@@ -64,12 +64,15 @@ def load_nse_company_list():
 
 
 def resolve_ticker(raw: str) -> str:
+    """Try .NS first (fast path), then .BO. Returns the symbol string if any data exists."""
     raw = raw.strip().upper().replace(".NS", "").replace(".BO", "")
     for suffix in [".NS", ".BO"]:
         symbol = raw + suffix
         try:
-            info = yf.Ticker(symbol).info
-            if info.get("longName") or info.get("shortName"):
+            t = yf.Ticker(symbol)
+            # Fast check: just pull 5d history — much faster than .info
+            hist = t.history(period="5d")
+            if not hist.empty:
                 return symbol
         except Exception:
             continue
@@ -783,6 +786,7 @@ def score_card_html(symbol, name, score, flag_count):
 
 
 def flag_html(sev, title, detail):
+    """Returns HTML string — only use OUTSIDE expanders via st.markdown unsafe_allow_html."""
     return f"""
     <div class="flag-item flag-{sev}">
         <div class="flag-dot"></div>
@@ -793,6 +797,31 @@ def flag_html(sev, title, detail):
         </div>
     </div>
     """
+
+
+def render_flags_native(flags):
+    """Render flags using pure Streamlit widgets — safe inside expanders."""
+    if not flags:
+        st.success("✅ No red flags triggered for this company.")
+        return
+    for sev, title, detail in flags:
+        color_map = {"HIGH": "#ef4444", "MEDIUM": "#f59e0b", "LOW": "#3b82f6"}
+        bg_map    = {"HIGH": "rgba(220,38,38,0.08)", "MEDIUM": "rgba(217,119,6,0.08)", "LOW": "rgba(37,99,235,0.08)"}
+        border_map= {"HIGH": "rgba(220,38,38,0.35)", "MEDIUM": "rgba(217,119,6,0.35)", "LOW": "rgba(37,99,235,0.3)"}
+        c = color_map.get(sev, "#94a3b8")
+        bg = bg_map.get(sev, "transparent")
+        bd = border_map.get(sev, "#334155")
+        st.markdown(
+            f"""<div style="background:{bg}; border:1px solid {bd}; border-radius:10px;
+                           padding:0.85rem 1rem; margin-bottom:0.5rem;">
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:0.6rem;
+                               font-weight:700; color:{c}; letter-spacing:1px;
+                               text-transform:uppercase;">{sev}</span>
+                  <div style="font-weight:600; font-size:0.88rem; color:#e2e8f0; margin-top:3px;">{title}</div>
+                  <div style="font-size:0.78rem; color:#94a3b8; margin-top:4px; line-height:1.55;">{detail}</div>
+                </div>""",
+            unsafe_allow_html=True
+        )
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -811,7 +840,7 @@ with st.spinner("Loading NSE company list…"):
 # ── Hero ───────────────────────────────────────────────────────────
 st.markdown(f"""
 <div class="hero">
-    <div class="hero-title">🚨 India <span>Red Flag</span> Dashboard</div>
+    <div class="hero-title">India <span>Red Flag</span> Dashboard</div>
     <div class="hero-sub" style="margin-top:0.7rem;">
         <span class="hero-badge">NSE</span>
         <span class="hero-badge">{len(ALL_COMPANIES):,} companies</span>
@@ -930,12 +959,7 @@ with tab_search:
 
                 # Flags
                 st.markdown('<div class="section-heading">Red Flags</div>', unsafe_allow_html=True)
-                if not r["flags"]:
-                    st.markdown('<div class="clean-badge">✅ No red flags triggered for this company.</div>',
-                                unsafe_allow_html=True)
-                else:
-                    flag_blocks = "\n".join(flag_html(sev, title, detail) for sev, title, detail in r["flags"])
-                    st.markdown(f'<div class="flag-wrap">{flag_blocks}</div>', unsafe_allow_html=True)
+                render_flags_native(r["flags"])
 
         # Excel download
         df_report = pd.DataFrame([{
@@ -958,8 +982,16 @@ with tab_sector:
     st.markdown('<div class="section-heading">Sector-wise Health Scan</div>', unsafe_allow_html=True)
 
     SECTOR_GROUPS = {
-        "🏦 Banks": ["HDFCBANK","ICICIBANK","AXISBANK","YESBANK","KOTAKBANK","SBIN","INDUSINDBK","FEDERALBNK","BANDHANBNK","IDFCFIRSTB"],
-        "💻 IT":    ["TCS","INFY","WIPRO","HCLTECH"],
+        "🏦 Banks":          ["HDFCBANK","ICICIBANK","AXISBANK","YESBANK","KOTAKBANK","SBIN","INDUSINDBK","FEDERALBNK","BANDHANBNK","IDFCFIRSTB"],
+        "💻 IT":             ["TCS","INFY","WIPRO","HCLTECH","TECHM","LTIM","MPHASIS","PERSISTENT","COFORGE","OFSS"],
+        "⚡ Power & Energy": ["NTPC","POWERGRID","ADANIPOWER","TATAPOWER","CESC","TORNTPOWER","NHPC","SJVN","RPOWER","JSWENERGY"],
+        "🏗️ Infrastructure": ["LT","ADANIPORTS","GMRINFRA","IRB","ASHOKA","KNR","NBCC","RVNL","IRCON","PNC"],
+        "🚗 Auto":           ["MARUTI","TATAMOTORS","M&M","BAJAJ-AUTO","EICHERMOT","HEROMOTOCO","ASHOKLEY","TVSMOTOR","MOTHERSON","BOSCHLTD"],
+        "💊 Pharma":         ["SUNPHARMA","DRREDDY","CIPLA","DIVISLAB","AUROPHARMA","LUPIN","TORNTPHARM","ALKEM","IPCALAB","GLENMARK"],
+        "💰 NBFCs":          ["BAJFINANCE","BAJAJFINSV","CHOLAFIN","MUTHOOTFIN","MANAPPURAM","LTFH","SHRIRAMFIN","ABCAPITAL","IIFL","POONAWALLA"],
+        "🛒 FMCG":           ["HINDUNILVR","ITC","NESTLEIND","BRITANNIA","DABUR","MARICO","COLPAL","GODREJCP","EMAMILTD","TATACONSUM"],
+        "🏠 Real Estate":    ["DLF","GODREJPROP","OBEROIRLTY","PRESTIGE","PHOENIXLTD","BRIGADE","SOBHA","MAHLIFE","LODHA","SUNTECK"],
+        "🔩 Metals":         ["TATASTEEL","JSWSTEEL","HINDALCO","SAIL","VEDL","NMDC","JINDALSTEL","APLAPOLLO","RATNAMANI","HINDCOPPER"],
     }
 
     chosen = st.selectbox("Select sector", list(SECTOR_GROUPS.keys()))
@@ -992,12 +1024,7 @@ with tab_sector:
                 c3.metric("Promoter", f"{r['promoter_holding_pct']:.1f}%")
 
                 st.markdown('<div class="section-heading">Red Flags</div>', unsafe_allow_html=True)
-                if not r["flags"]:
-                    st.markdown('<div class="clean-badge">✅ No major red flags detected.</div>',
-                                unsafe_allow_html=True)
-                else:
-                    flag_blocks = "\n".join(flag_html(sev, title, detail) for sev, title, detail in r["flags"])
-                    st.markdown(f'<div class="flag-wrap">{flag_blocks}</div>', unsafe_allow_html=True)
+                render_flags_native(r["flags"])
 
 
 # ═══════════════════════════════════════════════════════════════════
