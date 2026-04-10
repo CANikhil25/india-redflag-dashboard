@@ -347,99 +347,104 @@ st.set_page_config(
 # --- Simple, robust CSS for readability (no transparency, dark text on light) ---
 st.markdown("""
 <style>
-    /* Ensure body background is light but text is dark */
-    .stApp {
-        background-color: #f8f9fa;
-    }
-    /* Card style with solid background and shadow */
-    .card {
-        background-color: #ffffff;
-        border-radius: 12px;
-        padding: 1.2rem;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-        margin-bottom: 1rem;
-        border: 1px solid #e0e0e0;
-    }
-    /* Flag containers – solid background, dark text, colored borders */
-    .flag-HIGH {
-        background-color: #fee9e6;
-        border-left: 6px solid #c0392b;
-        padding: 12px 16px;
-        border-radius: 8px;
-        margin: 12px 0;
-        color: #2c3e50;
-        font-size: 0.9rem;
-    }
-    .flag-MEDIUM {
-        background-color: #fff3e0;
-        border-left: 6px solid #e67e22;
-        padding: 12px 16px;
-        border-radius: 8px;
-        margin: 12px 0;
-        color: #2c3e50;
-    }
-    .flag-LOW {
-        background-color: #e8f0fe;
-        border-left: 6px solid #2980b9;
-        padding: 12px 16px;
-        border-radius: 8px;
-        margin: 12px 0;
-        color: #2c3e50;
-    }
-    /* Score card */
-    .score-card {
-        background: #ffffff;
-        border-radius: 16px;
-        padding: 1rem;
-        text-align: center;
-        border: 1px solid #dee2e6;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-    }
-    /* Buttons */
-    .stButton > button {
-        background-color: #1f618d;
-        color: white;
-        border-radius: 30px;
-        padding: 0.5rem 1.5rem;
-        font-weight: 600;
-        border: none;
-        transition: 0.2s;
-    }
-    .stButton > button:hover {
-        background-color: #154360;
-        color: white;
-    }
-    /* Tabs */
-    .stTabs [data-baseweb="tab-list"] button {
-        background-color: #e9ecef;
-        border-radius: 30px;
-        margin-right: 8px;
-        font-weight: 500;
-        color: #1a1a1a;
-    }
-    .stTabs [data-baseweb="tab-list"] button[aria-selected="true"] {
-        background-color: #1f618d;
-        color: white;
-    }
-    /* Metric text */
-    [data-testid="stMetricValue"] {
-        color: #1a1a1a;
-        font-weight: 600;
-    }
-    /* Headers */
-    h1, h2, h3, h4 {
-        color: #1e3a5f;
-    }
-    /* Expander headers */
-    .streamlit-expanderHeader {
-        font-weight: 600;
-        background-color: #f1f3f5;
-        border-radius: 8px;
-    }
-    /* Dataframe */
-    .dataframe {
-        font-size: 0.85rem;
-    }
+
+/* ===== BACKGROUND ===== */
+.stApp {
+    background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+}
+
+/* ===== HERO HEADER ===== */
+.hero {
+    background: linear-gradient(135deg, #1f618d, #154360);
+    padding: 1.6rem 2rem;
+    border-radius: 16px;
+    color: white;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+
+.hero-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+}
+
+.hero-sub {
+    font-size: 0.85rem;
+    opacity: 0.85;
+}
+
+/* ===== SEARCH CONTAINER ===== */
+.search-box {
+    background: white;
+    padding: 1.3rem;
+    border-radius: 14px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+/* ===== SCORE CARD ===== */
+.score-card {
+    background: linear-gradient(135deg, #ffffff, #f9fafb);
+    border-radius: 16px;
+    padding: 1rem;
+    text-align: center;
+    border: 1px solid #e5e7eb;
+    transition: 0.2s ease;
+}
+
+.score-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.08);
+}
+
+/* ===== FLAGS ===== */
+.flag-HIGH {
+    background: #fff1f0;
+    border-left: 5px solid #e74c3c;
+    padding: 12px;
+    border-radius: 8px;
+}
+.flag-MEDIUM {
+    background: #fff7e6;
+    border-left: 5px solid #f39c12;
+    padding: 12px;
+    border-radius: 8px;
+}
+.flag-LOW {
+    background: #eef6ff;
+    border-left: 5px solid #3498db;
+    padding: 12px;
+    border-radius: 8px;
+}
+
+/* ===== BUTTON ===== */
+.stButton > button {
+    background: linear-gradient(135deg, #1f618d, #154360);
+    color: white;
+    border-radius: 30px;
+    padding: 0.5rem 1.5rem;
+    font-weight: 600;
+    border: none;
+}
+.stButton > button:hover {
+    transform: scale(1.03);
+}
+
+/* ===== TABS ===== */
+.stTabs [data-baseweb="tab-list"] button {
+    background: #e9edf3;
+    border-radius: 30px;
+}
+.stTabs [aria-selected="true"] {
+    background: #1f618d !important;
+    color: white !important;
+}
+
+/* ===== HEADINGS ===== */
+h1, h2, h3 {
+    color: #1f2937;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -514,13 +519,22 @@ with st.spinner("Loading NSE company list..."):
     ALL_COMPANIES = load_nse_company_list()
 
 # Header
-st.title("🚨 India Red Flag Dashboard")
-st.caption(f"**{len(ALL_COMPANIES):,} NSE-listed companies** · Forensic financial screening · Data via Yahoo Finance · {datetime.now().strftime('%d %b %Y, %I:%M %p')}")
+st.markdown(f"""
+<div class="hero">
+    <div class="hero-title">🚨 India Red Flag Dashboard</div>
+    <div class="hero-sub">
+        {len(ALL_COMPANIES):,} NSE-listed companies · Forensic Screening · {datetime.now().strftime('%d %b %Y, %I:%M %p')}
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 tab_search, tab_sector, tab_about = st.tabs(["🔍 Search & Analyse", "📊 Sector Scanner", "ℹ️ About"])
 
 # ======================= TAB 1 =======================
 with tab_search:
+    
+    st.markdown('<div class="search-box">', unsafe_allow_html=True)
+    
     st.markdown("### Search by company name or NSE ticker")
     col1, col2 = st.columns([3, 1])
     with col1:
@@ -534,6 +548,8 @@ with tab_search:
     with col2:
         st.caption("💡 Select multiple to compare")
         st.caption("📌 Ticker: RELIANCE (no .NS)")
+        
+    st.markdown('</div>', unsafe_allow_html=True)
 
     tickers = []
     if selected_names:
