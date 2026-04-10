@@ -22,11 +22,6 @@ from datetime import datetime
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def load_nse_company_list():
-    """
-    Fetches the full list of NSE-listed companies directly from NSE's website.
-    Returns a dict of {Company Name: NSE_TICKER.NS}
-    Falls back to a small hardcoded list if NSE is unreachable.
-    """
     try:
         url = "https://archives.nseindia.com/content/equities/EQUITY_L.csv"
         headers = {"User-Agent": "Mozilla/5.0"}
@@ -333,7 +328,7 @@ def run_all_checks(data):
 
 
 # ============================================================
-#  SECTION 3 — UI LAYER (FIXED: high contrast, readable)
+#  SECTION 3 — UI LAYER (Redesigned: sharp fintech aesthetic)
 # ============================================================
 
 st.set_page_config(
@@ -344,153 +339,461 @@ st.set_page_config(
     menu_items={"About": "Forensic analysis tool for NSE-listed companies. Not investment advice."}
 )
 
-# --- Simple, robust CSS for readability (no transparency, dark text on light) ---
 st.markdown("""
 <style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@300;400;600;700;800&display=swap');
 
-/* ===== BACKGROUND ===== */
-.stApp {
-    background: #f4f7fb;
+/* ── BASE ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, .stApp {
+    background-color: #0c0f1a !important;
+    color: #e8eaf0 !important;
+    font-family: 'Sora', sans-serif !important;
 }
 
-/* ===== HERO ===== */
+/* kill all default streamlit white backgrounds */
+section[data-testid="stSidebar"],
+.block-container {
+    background: transparent !important;
+    padding-top: 1rem !important;
+}
+
+/* ── HERO ─────────────────────────────────────────── */
 .hero {
-    background: linear-gradient(135deg, #0f172a, #1e3a8a);
-    padding: 1.6rem 2rem;
+    background: linear-gradient(135deg, #0d1b3e 0%, #0c0f1a 60%);
+    border: 1px solid #1e2d54;
+    border-radius: 16px;
+    padding: 2rem 2.4rem;
+    margin-bottom: 1.8rem;
+    position: relative;
+    overflow: hidden;
+}
+.hero::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 220px; height: 220px;
+    background: radial-gradient(circle, rgba(239,68,68,0.18) 0%, transparent 70%);
+    border-radius: 50%;
+}
+.hero-title {
+    font-size: 1.75rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: #ffffff;
+}
+.hero-title span { color: #ef4444; }
+.hero-sub {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    margin-top: 0.35rem;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.5px;
+}
+.hero-badge {
+    display: inline-block;
+    background: rgba(239,68,68,0.12);
+    border: 1px solid rgba(239,68,68,0.3);
+    color: #fca5a5;
+    font-size: 0.65rem;
+    font-family: 'IBM Plex Mono', monospace;
+    padding: 3px 10px;
+    border-radius: 4px;
+    margin-right: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* ── SEARCH PANEL ─────────────────────────────────── */
+.search-panel {
+    background: #111827;
+    border: 1px solid #1f2937;
     border-radius: 14px;
-    color: white;
-    margin-bottom: 1.5rem;
+    padding: 1.6rem 1.8rem;
+    margin-bottom: 1.4rem;
+}
+.panel-label {
+    font-size: 0.7rem;
+    font-family: 'IBM Plex Mono', monospace;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 0.6rem;
 }
 
-/* ===== SEARCH BOX ===== */
-.search-box {
-    background: #ffffff;
-    padding: 1.4rem;
-    border-radius: 12px;
-    border: 1px solid #e5e7eb;
+/* ── STREAMLIT WIDGET OVERRIDES ───────────────────── */
+/* Multiselect */
+div[data-baseweb="select"] > div,
+div[data-baseweb="select"] > div:focus-within {
+    background: #1e293b !important;
+    border: 1px solid #334155 !important;
+    border-radius: 8px !important;
+    color: #e2e8f0 !important;
 }
+div[data-baseweb="select"] span { color: #e2e8f0 !important; }
+div[data-baseweb="select"] svg { fill: #64748b !important; }
 
-/* ===== SCORE CARD ===== */
-.score-card {
-    background: white;
-    border-radius: 14px;
-    padding: 1rem;
-    text-align: center;
-    border: 1px solid #e5e7eb;
-    transition: 0.2s ease;
+/* Text input */
+.stTextInput input {
+    background: #1e293b !important;
+    border: 1px solid #334155 !important;
+    border-radius: 8px !important;
+    color: #e2e8f0 !important;
+    font-family: 'IBM Plex Mono', monospace !important;
+    font-size: 0.85rem !important;
+    padding: 0.55rem 0.9rem !important;
 }
-.score-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 10px 25px rgba(0,0,0,0.08);
-}
+.stTextInput input::placeholder { color: #475569 !important; }
+.stTextInput input:focus { border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59,130,246,0.15) !important; }
 
-/* ===== FLAGS ===== */
-.flag-HIGH {
-    background: #fee2e2;
-    border-left: 6px solid #dc2626;
-    padding: 12px;
-    border-radius: 8px;
-}
-.flag-MEDIUM {
-    background: #fef3c7;
-    border-left: 6px solid #d97706;
-    padding: 12px;
-    border-radius: 8px;
-}
-.flag-LOW {
-    background: #dbeafe;
-    border-left: 6px solid #2563eb;
-    padding: 12px;
-    border-radius: 8px;
-}
+/* Labels */
+label[data-testid="stWidgetLabel"] > div > p,
+.stTextInput label { color: #94a3b8 !important; font-size: 0.75rem !important; }
 
-/* ===== BUTTON ===== */
+/* Buttons */
 .stButton > button {
-    background: #1e3a8a;
-    color: white;
-    border-radius: 8px;
-    font-weight: 600;
+    background: #1d4ed8 !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-family: 'Sora', sans-serif !important;
+    font-weight: 600 !important;
+    font-size: 0.85rem !important;
+    padding: 0.55rem 1.4rem !important;
+    transition: background 0.2s, transform 0.15s !important;
+    letter-spacing: 0.2px !important;
 }
 .stButton > button:hover {
-    background: #172554;
+    background: #2563eb !important;
+    transform: translateY(-1px) !important;
 }
+.stButton > button:active { transform: translateY(0) !important; }
 
-/* ===== TABS ===== */
-.stTabs [data-baseweb="tab-list"] button {
-    background: #e5e7eb;
-    border-radius: 20px;
+/* Download button */
+.stDownloadButton > button {
+    background: #064e3b !important;
+    color: #6ee7b7 !important;
+    border: 1px solid #065f46 !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+}
+.stDownloadButton > button:hover { background: #065f46 !important; }
+
+/* Tabs */
+.stTabs [data-baseweb="tab-list"] {
+    background: #111827 !important;
+    border-radius: 10px !important;
+    padding: 4px !important;
+    gap: 2px !important;
+    border: 1px solid #1f2937 !important;
+}
+.stTabs [data-baseweb="tab"] {
+    background: transparent !important;
+    color: #64748b !important;
+    border-radius: 7px !important;
+    font-family: 'Sora', sans-serif !important;
+    font-size: 0.82rem !important;
+    font-weight: 500 !important;
+    padding: 0.45rem 1rem !important;
+    transition: all 0.2s !important;
 }
 .stTabs [aria-selected="true"] {
     background: #1e3a8a !important;
-    color: white !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
 }
 
-/* ===== TABLE ===== */
-[data-testid="stDataFrame"] {
-    border-radius: 12px;
+/* Expanders */
+details {
+    background: #111827 !important;
+    border: 1px solid #1f2937 !important;
+    border-radius: 12px !important;
+    overflow: hidden !important;
+    margin-bottom: 0.75rem !important;
+}
+details summary {
+    background: #111827 !important;
+    color: #e2e8f0 !important;
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+    padding: 0.9rem 1.2rem !important;
+    cursor: pointer !important;
+}
+details summary:hover { background: #1e293b !important; }
+details[open] summary { border-bottom: 1px solid #1f2937 !important; }
+details > div { background: #111827 !important; padding: 1rem 1.2rem !important; }
+
+/* Metrics */
+[data-testid="stMetric"] {
+    background: #1e293b !important;
+    border: 1px solid #334155 !important;
+    border-radius: 10px !important;
+    padding: 0.75rem 1rem !important;
+}
+[data-testid="stMetricLabel"] { color: #94a3b8 !important; font-size: 0.72rem !important; }
+[data-testid="stMetricValue"] { color: #f1f5f9 !important; font-size: 1.3rem !important; font-weight: 700 !important; }
+
+/* Selectbox */
+div[data-baseweb="select"] [role="listbox"] {
+    background: #1e293b !important;
+    border: 1px solid #334155 !important;
+}
+div[data-baseweb="select"] [role="option"] { color: #e2e8f0 !important; }
+div[data-baseweb="select"] [role="option"]:hover { background: #334155 !important; }
+
+/* Progress bar */
+.stProgress > div > div > div { background: #3b82f6 !important; }
+
+/* Spinner text */
+.stSpinner > div { color: #94a3b8 !important; }
+
+/* Success / error / warning alerts */
+.stSuccess { background: #052e16 !important; color: #86efac !important; border: 1px solid #166534 !important; border-radius: 8px !important; }
+.stError   { background: #1c0a0a !important; color: #fca5a5 !important; border: 1px solid #7f1d1d !important; border-radius: 8px !important; }
+.stWarning { background: #1c1208 !important; color: #fde68a !important; border: 1px solid #78350f !important; border-radius: 8px !important; }
+
+/* Divider */
+hr { border-color: #1f2937 !important; }
+
+/* Dataframe */
+[data-testid="stDataFrame"] { border: 1px solid #1f2937 !important; border-radius: 10px !important; overflow: hidden !important; }
+
+/* Caption / small text */
+.stCaption, small { color: #64748b !important; font-size: 0.72rem !important; }
+
+/* ── SCORE CARD ───────────────────────────────────── */
+.score-card {
+    background: #111827;
+    border: 1px solid #1f2937;
+    border-radius: 14px;
+    padding: 1.2rem 0.8rem;
+    text-align: center;
+    transition: transform 0.2s, border-color 0.2s;
+    position: relative;
     overflow: hidden;
 }
+.score-card:hover {
+    transform: translateY(-3px);
+    border-color: #334155;
+}
+.score-card .ticker-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.score-card .company-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #cbd5e1;
+    margin: 0.4rem 0;
+    line-height: 1.3;
+}
+.score-card .big-score {
+    font-size: 2.5rem;
+    font-weight: 800;
+    line-height: 1;
+    margin: 0.3rem 0;
+}
+.score-card .score-denom {
+    font-size: 0.9rem;
+    color: #475569;
+    font-weight: 400;
+}
+.score-card .risk-pill {
+    display: inline-block;
+    font-size: 0.62rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+    padding: 3px 12px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    margin-top: 0.3rem;
+}
+.score-card .flag-count {
+    font-size: 0.68rem;
+    color: #475569;
+    margin-top: 0.5rem;
+}
 
+/* ── FLAGS ────────────────────────────────────────── */
+.flag-wrap { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.5rem; }
+.flag-item {
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0 0.85rem;
+    align-items: start;
+}
+.flag-HIGH {
+    background: rgba(220,38,38,0.1);
+    border: 1px solid rgba(220,38,38,0.3);
+}
+.flag-MEDIUM {
+    background: rgba(217,119,6,0.1);
+    border: 1px solid rgba(217,119,6,0.3);
+}
+.flag-LOW {
+    background: rgba(37,99,235,0.1);
+    border: 1px solid rgba(37,99,235,0.25);
+}
+.flag-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-top: 5px;
+    flex-shrink: 0;
+}
+.flag-HIGH .flag-dot  { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.5); }
+.flag-MEDIUM .flag-dot { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.5); }
+.flag-LOW .flag-dot   { background: #3b82f6; box-shadow: 0 0 6px rgba(59,130,246,0.5); }
+.flag-sev {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+    display: block;
+}
+.flag-HIGH  .flag-sev { color: #f87171; }
+.flag-MEDIUM .flag-sev { color: #fbbf24; }
+.flag-LOW   .flag-sev { color: #60a5fa; }
+.flag-title { font-weight: 600; font-size: 0.88rem; color: #e2e8f0; }
+.flag-detail { font-size: 0.78rem; color: #94a3b8; margin-top: 3px; line-height: 1.5; }
+
+/* ── SECTION HEADINGS ─────────────────────────────── */
+.section-heading {
+    font-size: 0.7rem;
+    font-family: 'IBM Plex Mono', monospace;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin: 1.2rem 0 0.7rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.section-heading::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #1f2937;
+}
+
+/* ── CLEAN BADGE ──────────────────────────────────── */
+.clean-badge {
+    background: rgba(16,185,129,0.1);
+    border: 1px solid rgba(16,185,129,0.25);
+    border-radius: 8px;
+    padding: 0.7rem 1rem;
+    color: #6ee7b7;
+    font-size: 0.83rem;
+    font-weight: 600;
+}
 </style>
 """, unsafe_allow_html=True)
+
+
+# ── helpers ──────────────────────────────────────────────────────────
+
 def make_bar_chart(series, title, color):
     if series is None or series.empty:
         return None
-    years = [str(d)[:4] for d in series.index]
+    years  = [str(d)[:4] for d in series.index]
     values = [round(v, 0) for v in series.values]
     fig = go.Figure(go.Bar(
         x=years, y=values,
         marker_color=color,
-        text=values, textposition='outside',
-        textfont=dict(color='black', size=10)
+        marker_line_width=0,
+        text=values,
+        textposition='outside',
+        textfont=dict(color='#94a3b8', size=9, family='IBM Plex Mono')
     ))
     fig.update_layout(
-        title=dict(text=title, font=dict(size=14, color='black'), x=0.5),
-        height=260,
-        margin=dict(t=40, b=30, l=40, r=20),
-        paper_bgcolor='white',
-        plot_bgcolor='white',
-        yaxis_title="₹ Crore",
-        font=dict(color='black'),
-        xaxis=dict(tickangle=0, tickfont=dict(color='black')),
-        yaxis=dict(gridcolor='#e0e0e0', zerolinecolor='#cccccc')
+        title=dict(text=title, font=dict(size=12, color='#cbd5e1', family='Sora'), x=0.5),
+        height=240,
+        margin=dict(t=40, b=20, l=30, r=10),
+        paper_bgcolor='#111827',
+        plot_bgcolor='#111827',
+        yaxis_title="₹ Cr",
+        font=dict(color='#94a3b8', family='Sora'),
+        xaxis=dict(tickangle=0, tickfont=dict(color='#64748b', size=9), gridcolor='#1f2937', showgrid=False),
+        yaxis=dict(gridcolor='#1f2937', zerolinecolor='#334155', tickfont=dict(color='#64748b', size=9)),
     )
     return fig
 
+
 def risk_gauge(score):
-    color = "#c0392b" if score >= 6 else "#e67e22" if score >= 3 else "#27ae60"
+    color = "#ef4444" if score >= 6 else "#f59e0b" if score >= 3 else "#10b981"
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=score,
-        title={'text': "Risk Score", 'font': {'size': 14, 'color': 'black'}},
+        title={'text': "Risk Score", 'font': {'size': 11, 'color': '#94a3b8', 'family': 'Sora'}},
+        number={'font': {'size': 28, 'color': color, 'family': 'Sora'}, 'suffix': '/10'},
         domain={'x': [0, 1], 'y': [0, 1]},
         gauge={
-            'axis': {'range': [0, 10], 'tickcolor': 'black'},
-            'bar': {'color': color, 'thickness': 0.3},
-            'bgcolor': 'white',
+            'axis': {'range': [0, 10], 'tickcolor': '#334155', 'tickfont': {'color': '#475569', 'size': 8}},
+            'bar': {'color': color, 'thickness': 0.28},
+            'bgcolor': '#0c0f1a',
             'borderwidth': 0,
             'steps': [
-                {'range': [0, 3], 'color': '#e8f5e9'},
-                {'range': [3, 6], 'color': '#fff3e0'},
-                {'range': [6, 10], 'color': '#ffebee'}
+                {'range': [0, 3],  'color': 'rgba(16,185,129,0.08)'},
+                {'range': [3, 6],  'color': 'rgba(245,158,11,0.08)'},
+                {'range': [6, 10], 'color': 'rgba(239,68,68,0.08)'},
             ]
         }
     ))
-    fig.update_layout(height=200, margin=dict(t=30, b=10), paper_bgcolor='white')
+    fig.update_layout(
+        height=195,
+        margin=dict(t=30, b=5, l=15, r=15),
+        paper_bgcolor='#111827',
+        font=dict(color='#94a3b8')
+    )
     return fig
 
-def score_card_modern(symbol, name, score, flag_count):
+
+def score_card_html(symbol, name, score, flag_count):
     risk_label = "HIGH RISK" if score >= 6 else "WATCH" if score >= 3 else "CLEAN"
-    color = "#c0392b" if score >= 6 else "#e67e22" if score >= 3 else "#27ae60"
+    score_color = "#ef4444" if score >= 6 else "#f59e0b" if score >= 3 else "#10b981"
+    pill_bg = (
+        "rgba(239,68,68,0.12)" if score >= 6 else
+        "rgba(245,158,11,0.12)" if score >= 3 else
+        "rgba(16,185,129,0.12)"
+    )
+    pill_border = (
+        "rgba(239,68,68,0.35)" if score >= 6 else
+        "rgba(245,158,11,0.35)" if score >= 3 else
+        "rgba(16,185,129,0.35)"
+    )
     return f"""
     <div class="score-card">
-        <div style="font-size:0.7rem; color:#6c757d;">{symbol.replace('.NS','').replace('.BO','')}</div>
-        <div style="font-size:0.85rem; font-weight:500; margin:6px 0;">{name[:28]}</div>
-        <div style="font-size:2.2rem; font-weight:700; color:{color};">{score}<span style="font-size:0.9rem; color:#6c757d;">/10</span></div>
-        <div style="font-size:0.7rem; font-weight:600; color:{color}; background:#f8f9fa; display:inline-block; padding:2px 12px; border-radius:20px;">{risk_label}</div>
-        <div style="font-size:0.7rem; color:#6c757d; margin-top:6px;">🚩 {flag_count} flag(s)</div>
+        <div class="ticker-label">{symbol.replace('.NS','').replace('.BO','')}</div>
+        <div class="company-name">{name[:30]}</div>
+        <div class="big-score" style="color:{score_color};">{score}<span class="score-denom">/10</span></div>
+        <div>
+            <span class="risk-pill" style="background:{pill_bg}; border:1px solid {pill_border}; color:{score_color};">{risk_label}</span>
+        </div>
+        <div class="flag-count">🚩 {flag_count} flag(s)</div>
     </div>
     """
+
+
+def flag_html(sev, title, detail):
+    return f"""
+    <div class="flag-item flag-{sev}">
+        <div class="flag-dot"></div>
+        <div>
+            <span class="flag-sev">{sev}</span>
+            <div class="flag-title">{title}</div>
+            <div class="flag-detail">{detail}</div>
+        </div>
+    </div>
+    """
+
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def analyse_ticker(ticker):
@@ -499,43 +802,55 @@ def analyse_ticker(ticker):
     flags, score = run_all_checks(data)
     return {**data, "flags": flags, "score": score}
 
-# Load NSE list
-with st.spinner("Loading NSE company list..."):
+
+# ── Bootstrap ──────────────────────────────────────────────────────
+
+with st.spinner("Loading NSE company list…"):
     ALL_COMPANIES = load_nse_company_list()
 
-# Header
+# ── Hero ───────────────────────────────────────────────────────────
 st.markdown(f"""
 <div class="hero">
-    <div class="hero-title">🚨 India Red Flag Dashboard</div>
-    <div class="hero-sub">
-        {len(ALL_COMPANIES):,} NSE-listed companies · Forensic Screening · {datetime.now().strftime('%d %b %Y, %I:%M %p')}
+    <div class="hero-title">🚨 India <span>Red Flag</span> Dashboard</div>
+    <div class="hero-sub" style="margin-top:0.7rem;">
+        <span class="hero-badge">NSE</span>
+        <span class="hero-badge">{len(ALL_COMPANIES):,} companies</span>
+        <span class="hero-badge">10 forensic checks</span>
+        &nbsp;·&nbsp; {datetime.now().strftime('%d %b %Y, %I:%M %p')}
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-tab_search, tab_sector, tab_about = st.tabs(["🔍 Search & Analyse", "📊 Sector Scanner", "ℹ️ About"])
+# ── Tabs ───────────────────────────────────────────────────────────
+tab_search, tab_sector, tab_about = st.tabs(["🔍  Search & Analyse", "📊  Sector Scanner", "ℹ️  About"])
 
-# ======================= TAB 1 =======================
+
+# ═══════════════════════════════════════════════════════════════════
+#  TAB 1 — SEARCH & ANALYSE
+# ═══════════════════════════════════════════════════════════════════
 with tab_search:
-    
-    st.markdown('<div class="search-box">', unsafe_allow_html=True)
-    
-    st.markdown("### Search by company name or NSE ticker")
+
+    st.markdown('<div class="search-panel">', unsafe_allow_html=True)
+    st.markdown('<div class="panel-label">Search companies</div>', unsafe_allow_html=True)
+
     col1, col2 = st.columns([3, 1])
     with col1:
         selected_names = st.multiselect(
-            "Company name (searchable)",
+            "Company name",
             options=sorted(ALL_COMPANIES.keys()),
-            placeholder="Type to search...",
-            label_visibility="collapsed"
+            placeholder="Type to search by name…",
         )
-        manual = st.text_input("Or type NSE tickers (comma separated)", placeholder="e.g. RELIANCE, TCS, ZOMATO")
+        manual = st.text_input(
+            "NSE tickers (comma-separated)",
+            placeholder="e.g. RELIANCE, TCS, ZOMATO"
+        )
     with col2:
         st.caption("💡 Select multiple to compare")
-        st.caption("📌 Ticker: RELIANCE (no .NS)")
-        
+        st.caption("📌 Enter tickers without .NS")
+
     st.markdown('</div>', unsafe_allow_html=True)
 
+    # Resolve tickers
     tickers = []
     if selected_names:
         tickers += [ALL_COMPANIES[n] for n in selected_names]
@@ -545,151 +860,175 @@ with tab_search:
             if resolved:
                 tickers.append(resolved)
             else:
-                st.warning(f"Invalid ticker: {raw}")
+                st.warning(f"⚠️ Invalid or unresolvable ticker: **{raw}**")
     tickers = list(dict.fromkeys(tickers))
 
-    if tickers and st.button(f"Analyse {len(tickers)} company/companies", type="primary"):
+    if tickers and st.button(f"Analyse {len(tickers)} company/companies →", type="primary"):
         results = []
         prog = st.progress(0)
         for i, t in enumerate(tickers):
-            prog.progress((i+1)/len(tickers), f"Fetching {t}...")
+            prog.progress((i + 1) / len(tickers), f"Fetching {t}…")
             r = analyse_ticker(t)
             if r:
                 results.append(r)
             else:
-                st.error(f"No data for {t}")
+                st.error(f"No data available for **{t}** — check the ticker.")
             time.sleep(0.3)
         prog.empty()
 
         if not results:
-            st.error("No results. Try different tickers.")
+            st.error("No results returned. Try different tickers.")
             st.stop()
 
         results.sort(key=lambda x: x["score"], reverse=True)
 
-        st.divider()
-        st.subheader("Risk Summary")
+        # ── Risk summary cards ──────────────────────────────────
+        st.markdown('<div class="section-heading">Risk Summary</div>', unsafe_allow_html=True)
         cols = st.columns(min(5, len(results)))
         for idx, r in enumerate(results):
-            cols[idx % 5].markdown(score_card_modern(r["ticker"], r["name"], r["score"], len(r["flags"])), unsafe_allow_html=True)
+            cols[idx % 5].markdown(
+                score_card_html(r["ticker"], r["name"], r["score"], len(r["flags"])),
+                unsafe_allow_html=True
+            )
 
         st.divider()
+
+        # ── Per-company detail ──────────────────────────────────
         for r in results:
-            with st.expander(f"{'🔴' if r['score']>=6 else '🟡' if r['score']>=3 else '✅'} {r['name']} ({r['ticker'].replace('.NS','')}) | Score: {r['score']}/10", expanded=(r['score']>=6)):
+            icon = "🔴" if r["score"] >= 6 else "🟡" if r["score"] >= 3 else "🟢"
+            with st.expander(
+                f"{icon}  {r['name']}  ({r['ticker'].replace('.NS','')})   |   Score: {r['score']} / 10",
+                expanded=(r["score"] >= 6)
+            ):
+                # Metrics row
                 c1, c2, c3 = st.columns(3)
                 with c1:
-                    st.metric("Market Cap", f"₹{r['mcap_cr']:,.0f} Cr" if r['mcap_cr'] else "—")
-                    st.metric("Debt/Equity", f"{r['de_ratio']:.2f}" if r['de_ratio'] else "—")
+                    st.metric("Market Cap", f"₹{r['mcap_cr']:,.0f} Cr" if r["mcap_cr"] else "—")
+                    st.metric("Debt / Equity", f"{r['de_ratio']:.2f}x" if r["de_ratio"] else "—")
                 with c2:
-                    st.metric("Promoter Holding", f"{r['promoter_holding_pct']:.1f}%" if r['promoter_holding_pct'] else "—")
-                    st.metric("Sector", r['sector'])
+                    st.metric("Promoter Holding", f"{r['promoter_holding_pct']:.1f}%" if r["promoter_holding_pct"] else "—")
+                    st.metric("Sector", r["sector"])
                 with c3:
-                    st.plotly_chart(risk_gauge(r['score']), use_container_width=True, config={"displayModeBar": False})
+                    st.plotly_chart(risk_gauge(r["score"]), use_container_width=True,
+                                    config={"displayModeBar": False})
 
-                st.markdown("#### Financial Trends (₹ Crore)")
+                # Charts
+                st.markdown('<div class="section-heading">Financial Trends (₹ Crore)</div>', unsafe_allow_html=True)
                 col_ch1, col_ch2, col_ch3 = st.columns(3)
                 charts = [
-                    (r["pnl"].get("revenue"), "Revenue", "#1f618d"),
-                    (r["pnl"].get("net_profit"), "Net Profit", "#27ae60"),
-                    (r["cf"].get("cfo"), "Operating Cash Flow", "#e67e22")
+                    (r["pnl"].get("revenue"),    "Revenue",              "#3b82f6"),
+                    (r["pnl"].get("net_profit"),  "Net Profit",           "#10b981"),
+                    (r["cf"].get("cfo"),           "Operating Cash Flow",  "#f59e0b"),
                 ]
                 for i, (series, title, color) in enumerate(charts):
                     fig = make_bar_chart(series, title, color)
                     if fig:
-                        [col_ch1, col_ch2, col_ch3][i].plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+                        [col_ch1, col_ch2, col_ch3][i].plotly_chart(
+                            fig, use_container_width=True, config={"displayModeBar": False})
                     else:
-                        [col_ch1, col_ch2, col_ch3][i].info("No data")
+                        [col_ch1, col_ch2, col_ch3][i].caption("No data available")
 
-                st.markdown("#### 🚩 Red Flags")
+                # Flags
+                st.markdown('<div class="section-heading">Red Flags</div>', unsafe_allow_html=True)
                 if not r["flags"]:
-                    st.success("✅ No red flags triggered.")
+                    st.markdown('<div class="clean-badge">✅ No red flags triggered for this company.</div>',
+                                unsafe_allow_html=True)
                 else:
-                    for sev, title, detail in r["flags"]:
-                        st.markdown(f'<div class="flag-{sev}"><strong>[{sev}] {title}</strong><br>{detail}</div>', unsafe_allow_html=True)
+                    flag_blocks = "\n".join(flag_html(sev, title, detail) for sev, title, detail in r["flags"])
+                    st.markdown(f'<div class="flag-wrap">{flag_blocks}</div>', unsafe_allow_html=True)
 
         # Excel download
         df_report = pd.DataFrame([{
-            "Ticker": r["ticker"].replace(".NS",""),
-            "Company": r["name"],
-            "Sector": r["sector"],
+            "Ticker":   r["ticker"].replace(".NS", ""),
+            "Company":  r["name"],
+            "Sector":   r["sector"],
             "Mkt Cap Cr": r["mcap_cr"],
-            "Score": r["score"],
-            "Flags": " | ".join([f"{s}: {t}" for s,t,_ in r["flags"]]) or "None"
+            "Score":    r["score"],
+            "Flags":    " | ".join([f"{s}: {t}" for s, t, _ in r["flags"]]) or "None"
         } for r in results])
         buffer = io.BytesIO()
         df_report.to_excel(buffer, index=False)
         st.download_button("📥 Download Excel Report", buffer.getvalue(), file_name="red_flags.xlsx")
 
-# ======================= TAB 2 =======================
+
+# ═══════════════════════════════════════════════════════════════════
+#  TAB 2 — SECTOR SCANNER
+# ═══════════════════════════════════════════════════════════════════
 with tab_sector:
-    st.markdown("### 📊 Sector-wise Health Scan")
+    st.markdown('<div class="section-heading">Sector-wise Health Scan</div>', unsafe_allow_html=True)
 
     SECTOR_GROUPS = {
         "🏦 Banks": ["HDFCBANK","ICICIBANK","AXISBANK","YESBANK","KOTAKBANK","SBIN","INDUSINDBK","FEDERALBNK","BANDHANBNK","IDFCFIRSTB"],
-        "💻 IT": ["TCS","INFY","WIPRO","HCLTECH"],
+        "💻 IT":    ["TCS","INFY","WIPRO","HCLTECH"],
     }
 
     chosen = st.selectbox("Select sector", list(SECTOR_GROUPS.keys()))
 
-    if st.button("Scan Sector", type="primary"):
-
+    if st.button("Scan Sector →", type="primary"):
         sector_tickers = [f"{t}.NS" for t in SECTOR_GROUPS[chosen]]
-
         results = []
         prog = st.progress(0)
-
         for i, sym in enumerate(sector_tickers):
-            prog.progress((i+1)/len(sector_tickers), f"Scanning {sym}...")
+            prog.progress((i + 1) / len(sector_tickers), f"Scanning {sym}…")
             r = analyse_ticker(sym)
             if r:
                 results.append(r)
             time.sleep(0.2)
-
         prog.empty()
 
         if not results:
-            st.warning("No data")
+            st.warning("No data returned. Try again later.")
             st.stop()
 
-        # Sort by risk
         results.sort(key=lambda x: x["score"], reverse=True)
-
         st.divider()
 
-        # 🔥 NEW: Interactive cards instead of boring table
         for r in results:
+            icon = "🔴" if r["score"] >= 6 else "🟡" if r["score"] >= 3 else "🟢"
+            with st.expander(f"{icon}  {r['name']}   |   Score: {r['score']} / 10"):
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Market Cap", f"₹{r['mcap_cr']:,.0f} Cr" if r["mcap_cr"] else "—")
+                c2.metric("D/E", f"{r['de_ratio']:.2f}x" if r["de_ratio"] else "—")
+                c3.metric("Promoter", f"{r['promoter_holding_pct']:.1f}%")
 
-            risk_color = "🔴" if r["score"] >= 6 else "🟡" if r["score"] >= 3 else "🟢"
-
-            with st.expander(f"{risk_color} {r['name']} | Score: {r['score']} / 10"):
-
-                col1, col2, col3 = st.columns(3)
-
-                with col1:
-                    st.metric("Market Cap", f"₹{r['mcap_cr']:,.0f} Cr" if r['mcap_cr'] else "—")
-
-                with col2:
-                    st.metric("D/E", f"{r['de_ratio']:.2f}" if r['de_ratio'] else "—")
-
-                with col3:
-                    st.metric("Promoter", f"{r['promoter_holding_pct']:.1f}%")
-
-                st.markdown("#### 🚩 Red Flags")
-
+                st.markdown('<div class="section-heading">Red Flags</div>', unsafe_allow_html=True)
                 if not r["flags"]:
-                    st.success("No major red flags")
+                    st.markdown('<div class="clean-badge">✅ No major red flags detected.</div>',
+                                unsafe_allow_html=True)
                 else:
-                    for sev, title, detail in r["flags"]:
-                        st.markdown(
-                            f'<div class="flag-{sev}"><b>{title}</b><br>{detail}</div>',
-                            unsafe_allow_html=True)
-                        
-# ======================= TAB 3 =======================
+                    flag_blocks = "\n".join(flag_html(sev, title, detail) for sev, title, detail in r["flags"])
+                    st.markdown(f'<div class="flag-wrap">{flag_blocks}</div>', unsafe_allow_html=True)
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  TAB 3 — ABOUT
+# ═══════════════════════════════════════════════════════════════════
 with tab_about:
     st.markdown("""
-    ## Methodology
-    - **10 forensic checks** (CFO/Profit, Receivables growth, Debt vs CFO, Inventory, Interest coverage, Negative CFO with profit, Revenue decline, Sustained losses, Debt/Equity, Promoter holding)
-    - **Scoring:** HIGH=2, MEDIUM=1, LOW=0 → max 10
-    - **Data:** Yahoo Finance annual financials (lag may exist)
-    - **Disclaimer:** Not investment advice. For research only.
-    """)
+    <div style="max-width: 640px; color: #94a3b8; line-height: 1.8; font-size: 0.88rem;">
+
+    <div class="section-heading">Methodology</div>
+
+    <p>This tool runs <strong style="color:#e2e8f0;">10 forensic checks</strong> on publicly available annual financials sourced from Yahoo Finance:</p>
+
+    <ul style="padding-left: 1.2rem;">
+        <li>CFO vs Net Profit ratio</li>
+        <li>Receivables growth vs Revenue growth</li>
+        <li>Debt growth vs CFO decline</li>
+        <li>Inventory build-up vs Revenue</li>
+        <li>Interest coverage ratio</li>
+        <li>Negative CFO alongside reported profits</li>
+        <li>Revenue decline (3Y CAGR)</li>
+        <li>Sustained net losses</li>
+        <li>Debt / Equity ratio</li>
+        <li>Promoter / insider holding %</li>
+    </ul>
+
+    <div class="section-heading" style="margin-top: 1.4rem;">Scoring</div>
+    <p>HIGH flag = 2 pts &nbsp;·&nbsp; MEDIUM flag = 1 pt &nbsp;·&nbsp; LOW flag = 0 pts &nbsp;·&nbsp; Max score capped at 10.</p>
+
+    <div class="section-heading" style="margin-top: 1.4rem;">Disclaimer</div>
+    <p>This is <strong style="color:#f87171;">not investment advice.</strong> Data may lag by one quarter or more. Always do your own research and consult a SEBI-registered advisor before making investment decisions.</p>
+
+    </div>
+    """, unsafe_allow_html=True)
