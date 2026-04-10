@@ -23,7 +23,13 @@ from datetime import datetime
 def load_nse_company_list():
     try:
         url = "https://archives.nseindia.com/content/equities/EQUITY_L.csv"
-        headers = {"User-Agent": "Mozilla/5.0"}
+        headers = {
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Referer": "https://www.nseindia.com/",
+            "Connection": "keep-alive"
+        }
         resp = requests.get(url, headers=headers, timeout=10)
         resp.raise_for_status()
         from io import StringIO
