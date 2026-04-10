@@ -1008,36 +1008,38 @@ with tab_sector:
                 c1.metric("Market Cap", f"₹{r['mcap_cr']:,.0f} Cr" if r["mcap_cr"] else "—")
                 c2.metric("D/E", f"{r['de_ratio']:.2f}x" if r["de_ratio"] else "—")
                 c3.metric("Promoter", f"{r['promoter_holding_pct']:.1f}%")
+
                 st.markdown('<div class="section-heading">Red Flags with Financial Evidence</div>',
                             unsafe_allow_html=True)
-                # Split flags
-risk_flags = [f for f in r["flags"] if len(f) >= 5 and f[4] == "RISK"]
-manip_flags = [f for f in r["flags"] if len(f) >= 5 and f[4] == "MANIPULATION"]
 
-st.markdown('<div class="section-heading">🔴 Financial Risk</div>', unsafe_allow_html=True)
+                # ✅ NOW INSIDE EXPANDER
+                risk_flags = [f for f in r["flags"] if len(f) >= 5 and f[4] == "RISK"]
+                manip_flags = [f for f in r["flags"] if len(f) >= 5 and f[4] == "MANIPULATION"]
 
-if not risk_flags:
-    st.success("✅ No major financial risk detected")
-else:
-    for flag in risk_flags:
-        render_flag_with_evidence(flag, r)
+                st.markdown('<div class="section-heading">🔴 Financial Risk</div>', unsafe_allow_html=True)
 
-st.markdown('<div class="section-heading">🟣 Manipulation Signals</div>', unsafe_allow_html=True)
+                if not risk_flags:
+                    st.success("✅ No major financial risk detected")
+                else:
+                    for flag in risk_flags:
+                        render_flag_with_evidence(flag, r)
 
-if not manip_flags:
-    st.success("🟢 No manipulation signals detected")
-else:
-    for flag in manip_flags:
-        render_flag_with_evidence(flag, r)
+                st.markdown('<div class="section-heading">🟣 Manipulation Signals</div>', unsafe_allow_html=True)
 
-manip_score = sum({"HIGH":2,"MEDIUM":1}.get(f[0],0) for f in manip_flags)
+                if not manip_flags:
+                    st.success("🟢 No manipulation signals detected")
+                else:
+                    for flag in manip_flags:
+                        render_flag_with_evidence(flag, r)
 
-if manip_score == 0:
-    st.success("🟢 Clean accounting signals")
-elif manip_score <= 2:
-    st.warning("🟡 Mild manipulation signals")
-else:
-    st.error("🔴 High manipulation risk")
+                manip_score = sum({"HIGH":2,"MEDIUM":1}.get(f[0],0) for f in manip_flags)
+
+                if manip_score == 0:
+                    st.success("🟢 Clean accounting signals")
+                elif manip_score <= 2:
+                    st.warning("🟡 Mild manipulation signals")
+                else:
+                    st.error("🔴 High manipulation risk")
     
 # ═══════════════════════════════════════════════════════════════════
 #  TAB 3 — ABOUT
