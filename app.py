@@ -760,9 +760,12 @@ def render_flag_with_evidence(flag_tuple, data):
         for i, ev in enumerate(ev_series[:3]):
             fig = make_mini_bar(ev["series"], ev["label"], ev["highlight"])
             if fig:
-                chart_cols[i].plotly_chart(fig, use_container_width=True,
-                                           config={"displayModeBar":False})
-
+                chart_cols[i].plotly_chart(
+    fig,
+    use_container_width=True,
+    config={'displayModeBar': False},
+    key=f"plot_{flag}_{i}"
+)
     st.markdown("<div style='height:2px'></div>", unsafe_allow_html=True)
 
 
