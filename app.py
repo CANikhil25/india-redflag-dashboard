@@ -350,104 +350,89 @@ st.markdown("""
 
 /* ===== BACKGROUND ===== */
 .stApp {
-    background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+    background: #f4f7fb;
 }
 
-/* ===== HERO HEADER ===== */
+/* ===== HERO ===== */
 .hero {
-    background: linear-gradient(135deg, #1f618d, #154360);
+    background: linear-gradient(135deg, #0f172a, #1e3a8a);
     padding: 1.6rem 2rem;
-    border-radius: 16px;
+    border-radius: 14px;
     color: white;
     margin-bottom: 1.5rem;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
 }
 
-.hero-title {
-    font-size: 1.6rem;
-    font-weight: 700;
-}
-
-.hero-sub {
-    font-size: 0.85rem;
-    opacity: 0.85;
-}
-
-/* ===== SEARCH CONTAINER ===== */
+/* ===== SEARCH BOX ===== */
 .search-box {
-    background: white;
-    padding: 1.3rem;
-    border-radius: 14px;
+    background: #ffffff;
+    padding: 1.4rem;
+    border-radius: 12px;
     border: 1px solid #e5e7eb;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
 }
 
 /* ===== SCORE CARD ===== */
 .score-card {
-    background: linear-gradient(135deg, #ffffff, #f9fafb);
-    border-radius: 16px;
+    background: white;
+    border-radius: 14px;
     padding: 1rem;
     text-align: center;
     border: 1px solid #e5e7eb;
     transition: 0.2s ease;
 }
-
 .score-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 10px 24px rgba(0,0,0,0.08);
+    transform: translateY(-4px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.08);
 }
 
 /* ===== FLAGS ===== */
 .flag-HIGH {
-    background: #fff1f0;
-    border-left: 5px solid #e74c3c;
+    background: #fee2e2;
+    border-left: 6px solid #dc2626;
     padding: 12px;
     border-radius: 8px;
 }
 .flag-MEDIUM {
-    background: #fff7e6;
-    border-left: 5px solid #f39c12;
+    background: #fef3c7;
+    border-left: 6px solid #d97706;
     padding: 12px;
     border-radius: 8px;
 }
 .flag-LOW {
-    background: #eef6ff;
-    border-left: 5px solid #3498db;
+    background: #dbeafe;
+    border-left: 6px solid #2563eb;
     padding: 12px;
     border-radius: 8px;
 }
 
 /* ===== BUTTON ===== */
 .stButton > button {
-    background: linear-gradient(135deg, #1f618d, #154360);
+    background: #1e3a8a;
     color: white;
-    border-radius: 30px;
-    padding: 0.5rem 1.5rem;
+    border-radius: 8px;
     font-weight: 600;
-    border: none;
 }
 .stButton > button:hover {
-    transform: scale(1.03);
+    background: #172554;
 }
 
 /* ===== TABS ===== */
 .stTabs [data-baseweb="tab-list"] button {
-    background: #e9edf3;
-    border-radius: 30px;
+    background: #e5e7eb;
+    border-radius: 20px;
 }
 .stTabs [aria-selected="true"] {
-    background: #1f618d !important;
+    background: #1e3a8a !important;
     color: white !important;
 }
 
-/* ===== HEADINGS ===== */
-h1, h2, h3 {
-    color: #1f2937;
+/* ===== TABLE ===== */
+[data-testid="stDataFrame"] {
+    border-radius: 12px;
+    overflow: hidden;
 }
 
 </style>
 """, unsafe_allow_html=True)
-
 def make_bar_chart(series, title, color):
     if series is None or series.empty:
         return None
@@ -637,36 +622,68 @@ with tab_search:
 
 # ======================= TAB 2 =======================
 with tab_sector:
-    st.markdown("### Sector-wise health scan")
+    st.markdown("### 📊 Sector-wise Health Scan")
+
     SECTOR_GROUPS = {
         "🏦 Banks": ["HDFCBANK","ICICIBANK","AXISBANK","YESBANK","KOTAKBANK","SBIN","INDUSINDBK","FEDERALBNK","BANDHANBNK","IDFCFIRSTB"],
-        "💻 IT Services": ["TCS","INFY","WIPRO","HCLTECH","TECHM","MPHASIS","LTIM","PERSISTENT","COFORGE"],
-        "💊 Pharma": ["SUNPHARMA","DRREDDY","CIPLA","DIVISLAB","AUROPHARMA","TORNTPHARM","ALKEM"],
-        "⚡ Adani Group": ["ADANIENT","ADANIPORTS","ADANIPOWER","ADANIGREEN","ADANITRANS","ADANIGAS"],
-        "🏭 Auto": ["TATAMOTORS","MARUTI","HEROMOTOCO","BAJAJ-AUTO","EICHERMOT","MAHINDRA"],
-        "🛢️ Oil & Gas": ["RELIANCE","ONGC","BPCL","IOC","HINDPETRO","GAIL"],
-        "⚠️ High-risk": ["YESBANK","RCOM","SUZLON","JPPOWER","GTLINFRA"],
+        "💻 IT": ["TCS","INFY","WIPRO","HCLTECH"],
     }
+
     chosen = st.selectbox("Select sector", list(SECTOR_GROUPS.keys()))
+
     if st.button("Scan Sector", type="primary"):
+
         sector_tickers = [f"{t}.NS" for t in SECTOR_GROUPS[chosen]]
-        rows, prog = [], st.progress(0)
+
+        results = []
+        prog = st.progress(0)
+
         for i, sym in enumerate(sector_tickers):
             prog.progress((i+1)/len(sector_tickers), f"Scanning {sym}...")
             r = analyse_ticker(sym)
             if r:
-                rows.append({"Ticker": sym.replace(".NS",""), "Company": r["name"], "Score": r["score"], "#Flags": len(r["flags"])})
+                results.append(r)
             time.sleep(0.2)
-        prog.empty()
-        if rows:
-            df = pd.DataFrame(rows).sort_values("Score", ascending=False)
-            st.dataframe(df, use_container_width=True)
-            buffer = io.BytesIO()
-            df.to_excel(buffer, index=False)
-            st.download_button("Download Sector Report", buffer.getvalue(), file_name=f"sector_{chosen}.xlsx")
-        else:
-            st.warning("No data")
 
+        prog.empty()
+
+        if not results:
+            st.warning("No data")
+            st.stop()
+
+        # Sort by risk
+        results.sort(key=lambda x: x["score"], reverse=True)
+
+        st.divider()
+
+        # 🔥 NEW: Interactive cards instead of boring table
+        for r in results:
+
+            risk_color = "🔴" if r["score"] >= 6 else "🟡" if r["score"] >= 3 else "🟢"
+
+            with st.expander(f"{risk_color} {r['name']} | Score: {r['score']} / 10"):
+
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    st.metric("Market Cap", f"₹{r['mcap_cr']:,.0f} Cr" if r['mcap_cr'] else "—")
+
+                with col2:
+                    st.metric("D/E", f"{r['de_ratio']:.2f}" if r['de_ratio'] else "—")
+
+                with col3:
+                    st.metric("Promoter", f"{r['promoter_holding_pct']:.1f}%")
+
+                st.markdown("#### 🚩 Red Flags")
+
+                if not r["flags"]:
+                    st.success("No major red flags")
+                else:
+                    for sev, title, detail in r["flags"]:
+                        st.markdown(
+                            f'<div class="flag-{sev}"><b>{title}</b><br>{detail}</div>',
+                            unsafe_allow_html=True)
+                        
 # ======================= TAB 3 =======================
 with tab_about:
     st.markdown("""
