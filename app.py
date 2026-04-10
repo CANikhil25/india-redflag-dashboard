@@ -1,10 +1,9 @@
 # ============================================================
 #  INDIA RED FLAG DASHBOARD  —  app.py
-#  Fixed UI: high contrast, readable text, functional layout
 #
-#  SECTION 1 — DATA LAYER       edit for new data sources
-#  SECTION 2 — ANALYSIS LAYER   edit for new checks / scoring
-#  SECTION 3 — UI LAYER         clean, accessible, no contrast issues
+#  SECTION 1 — DATA LAYER
+#  SECTION 2 — ANALYSIS LAYER  (flags now carry "evidence" metadata)
+#  SECTION 3 — UI LAYER        (3-panel BS/PL/CF per flag)
 # ============================================================
 
 import streamlit as st
@@ -17,7 +16,7 @@ import requests
 from datetime import datetime
 
 # ============================================================
-#  SECTION 1 — DATA LAYER (unchanged, robust)
+#  SECTION 1 — DATA LAYER
 # ============================================================
 
 @st.cache_data(ttl=86400, show_spinner=False)
@@ -39,39 +38,41 @@ def load_nse_company_list():
                 company_dict[f"{name}  ({sym})"] = f"{sym}.NS"
         return company_dict
     except Exception:
-        return {
-            "Reliance Industries (RELIANCE)": "RELIANCE.NS",
-            "TCS (TCS)": "TCS.NS",
-            "Infosys (INFY)": "INFY.NS",
-            "HDFC Bank (HDFCBANK)": "HDFCBANK.NS",
-            "ICICI Bank (ICICIBANK)": "ICICIBANK.NS",
-            "Wipro (WIPRO)": "WIPRO.NS",
-            "Adani Enterprises (ADANIENT)": "ADANIENT.NS",
-            "Yes Bank (YESBANK)": "YESBANK.NS",
-            "Zomato (ZOMATO)": "ZOMATO.NS",
-            "Paytm (PAYTM)": "PAYTM.NS",
-            "Bajaj Finance (BAJFINANCE)": "BAJFINANCE.NS",
-            "ITC (ITC)": "ITC.NS",
-            "L&T (LT)": "LT.NS",
-            "Sun Pharma (SUNPHARMA)": "SUNPHARMA.NS",
-            "Tata Motors (TATAMOTORS)": "TATAMOTORS.NS",
-            "ONGC (ONGC)": "ONGC.NS",
-            "Coal India (COALINDIA)": "COALINDIA.NS",
-            "SBIN (SBIN)": "SBIN.NS",
-            "Axis Bank (AXISBANK)": "AXISBANK.NS",
-            "Maruti Suzuki (MARUTI)": "MARUTI.NS",
-        }
+        tickers = [
+            ("Reliance Industries","RELIANCE"),("TCS","TCS"),("Infosys","INFY"),
+            ("HDFC Bank","HDFCBANK"),("ICICI Bank","ICICIBANK"),("Wipro","WIPRO"),
+            ("Adani Enterprises","ADANIENT"),("Yes Bank","YESBANK"),("Zomato","ZOMATO"),
+            ("Paytm","PAYTM"),("Bajaj Finance","BAJFINANCE"),("ITC","ITC"),
+            ("L&T","LT"),("Sun Pharma","SUNPHARMA"),("Tata Motors","TATAMOTORS"),
+            ("ONGC","ONGC"),("Coal India","COALINDIA"),("SBI","SBIN"),
+            ("Axis Bank","AXISBANK"),("Maruti Suzuki","MARUTI"),
+            ("HCL Tech","HCLTECH"),("Tech Mahindra","TECHM"),
+            ("NTPC","NTPC"),("Power Grid","POWERGRID"),("Tata Steel","TATASTEEL"),
+            ("JSW Steel","JSWSTEEL"),("Hindalco","HINDALCO"),("Vedanta","VEDL"),
+            ("NMDC","NMDC"),("Dr Reddy's","DRREDDY"),("Cipla","CIPLA"),
+            ("Divis Labs","DIVISLAB"),("Lupin","LUPIN"),("Aurobindo Pharma","AUROPHARMA"),
+            ("Hindustan Unilever","HINDUNILVR"),("Nestle India","NESTLEIND"),
+            ("Britannia","BRITANNIA"),("Dabur","DABUR"),("Marico","MARICO"),
+            ("DLF","DLF"),("Godrej Properties","GODREJPROP"),("Prestige Estates","PRESTIGE"),
+            ("Tata Power","TATAPOWER"),("Adani Ports","ADANIPORTS"),
+            ("Bajaj Auto","BAJAJ-AUTO"),("Eicher Motors","EICHERMOT"),
+            ("Hero MotoCorp","HEROMOTOCO"),("Ashok Leyland","ASHOKLEY"),
+            ("TVS Motor","TVSMOTOR"),("Muthoot Finance","MUTHOOTFIN"),
+            ("Cholamandalam Finance","CHOLAFIN"),("Shriram Finance","SHRIRAMFIN"),
+            ("Federal Bank","FEDERALBNK"),("Bandhan Bank","BANDHANBNK"),
+            ("Kotak Mahindra Bank","KOTAKBANK"),("IndusInd Bank","INDUSINDBK"),
+            ("Tata Communications","TATACOMM"),("Adani Green","ADANIGREEN"),
+            ("JSW Energy","JSWENERGY"),("Torrent Power","TORNTPOWER"),
+        ]
+        return {f"{name}  ({sym})": f"{sym}.NS" for name, sym in tickers}
 
 
 def resolve_ticker(raw: str) -> str:
-    """Try .NS first (fast path), then .BO. Returns the symbol string if any data exists."""
-    raw = raw.strip().upper().replace(".NS", "").replace(".BO", "")
+    raw = raw.strip().upper().replace(".NS","").replace(".BO","")
     for suffix in [".NS", ".BO"]:
         symbol = raw + suffix
         try:
-            t = yf.Ticker(symbol)
-            # Fast check: just pull 5d history — much faster than .info
-            hist = t.history(period="5d")
+            hist = yf.Ticker(symbol).history(period="5d")
             if not hist.empty:
                 return symbol
         except Exception:
@@ -80,8 +81,7 @@ def resolve_ticker(raw: str) -> str:
 
 
 def _safe_row(df, names):
-    if df is None or df.empty:
-        return None
+    if df is None or df.empty: return None
     for name in names:
         if name in df.index:
             row = pd.to_numeric(df.loc[name], errors="coerce").dropna()
@@ -90,13 +90,11 @@ def _safe_row(df, names):
     return None
 
 def _to_cr(val):
-    if val is None or (isinstance(val, float) and pd.isna(val)):
-        return None
+    if val is None or (isinstance(val, float) and pd.isna(val)): return None
     return round(float(val) / 1e7, 2)
 
 def _series_cr(series):
-    if series is None:
-        return None
+    if series is None: return None
     return series.apply(lambda x: round(x / 1e7, 2) if pd.notna(x) else None)
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -106,24 +104,22 @@ def get_company_data(ticker: str):
         info = t.info or {}
         if not info.get("longName") and not info.get("shortName"):
             return None
-
         raw_pnl = t.financials
         raw_bs  = t.balance_sheet
         raw_cf  = t.cashflow
-
         pnl = {
-            "revenue":          _series_cr(_safe_row(raw_pnl, ["Total Revenue", "Revenue"])),
-            "ebitda":           _series_cr(_safe_row(raw_pnl, ["EBITDA", "Normalized EBITDA"])),
-            "operating_profit": _series_cr(_safe_row(raw_pnl, ["Operating Income", "EBIT"])),
-            "net_profit":       _series_cr(_safe_row(raw_pnl, ["Net Income", "Net Income Common Stockholders"])),
+            "revenue":          _series_cr(_safe_row(raw_pnl, ["Total Revenue","Revenue"])),
+            "ebitda":           _series_cr(_safe_row(raw_pnl, ["EBITDA","Normalized EBITDA"])),
+            "operating_profit": _series_cr(_safe_row(raw_pnl, ["Operating Income","EBIT"])),
+            "net_profit":       _series_cr(_safe_row(raw_pnl, ["Net Income","Net Income Common Stockholders"])),
             "interest_exp":     _series_cr(_safe_row(raw_pnl, ["Interest Expense"])),
-            "other_income":     _series_cr(_safe_row(raw_pnl, ["Other Income Expense", "Non Operating Income"])),
-            "depreciation":     _series_cr(_safe_row(raw_pnl, ["Reconciled Depreciation", "Depreciation And Amortization"])),
+            "other_income":     _series_cr(_safe_row(raw_pnl, ["Other Income Expense","Non Operating Income"])),
+            "depreciation":     _series_cr(_safe_row(raw_pnl, ["Reconciled Depreciation","Depreciation And Amortization"])),
         }
         bs = {
-            "total_debt":     _series_cr(_safe_row(raw_bs, ["Total Debt", "Long Term Debt"])),
-            "equity":         _series_cr(_safe_row(raw_bs, ["Stockholders Equity", "Common Stock Equity"])),
-            "receivables":    _series_cr(_safe_row(raw_bs, ["Accounts Receivable", "Net Receivables"])),
+            "total_debt":     _series_cr(_safe_row(raw_bs, ["Total Debt","Long Term Debt"])),
+            "equity":         _series_cr(_safe_row(raw_bs, ["Stockholders Equity","Common Stock Equity"])),
+            "receivables":    _series_cr(_safe_row(raw_bs, ["Accounts Receivable","Net Receivables"])),
             "inventory":      _series_cr(_safe_row(raw_bs, ["Inventory"])),
             "total_assets":   _series_cr(_safe_row(raw_bs, ["Total Assets"])),
             "current_assets": _series_cr(_safe_row(raw_bs, ["Current Assets"])),
@@ -132,18 +128,18 @@ def get_company_data(ticker: str):
                                          "Cash Cash Equivalents And Short Term Investments"])),
         }
         cf = {
-            "cfo":   _series_cr(_safe_row(raw_cf, ["Operating Cash Flow", "Cash From Operations"])),
+            "cfo":   _series_cr(_safe_row(raw_cf, ["Operating Cash Flow","Cash From Operations"])),
             "capex": _series_cr(_safe_row(raw_cf, ["Capital Expenditure"])),
             "fcf":   _series_cr(_safe_row(raw_cf, ["Free Cash Flow"])),
         }
         return {
             "ticker":               ticker,
             "name":                 info.get("longName") or info.get("shortName") or ticker,
-            "sector":               info.get("sector", "Unknown"),
-            "industry":             info.get("industry", "Unknown"),
+            "sector":               info.get("sector","Unknown"),
+            "industry":             info.get("industry","Unknown"),
             "mcap_cr":              _to_cr(info.get("marketCap")),
-            "de_ratio":             round(info.get("debtToEquity", 0) / 100, 2) if info.get("debtToEquity") else None,
-            "promoter_holding_pct": round(info.get("heldPercentInsiders", 0) * 100, 1),
+            "de_ratio":             round(info.get("debtToEquity",0)/100,2) if info.get("debtToEquity") else None,
+            "promoter_holding_pct": round(info.get("heldPercentInsiders",0)*100,1),
             "pnl": pnl, "bs": bs, "cf": cf,
         }
     except Exception:
@@ -151,17 +147,20 @@ def get_company_data(ticker: str):
 
 
 # ============================================================
-#  SECTION 2 — ANALYSIS LAYER (unchanged)
+#  SECTION 2 — ANALYSIS LAYER
+#  Each flag tuple: (severity, title, detail, evidence_list)
+#  evidence item: {"panel":"BS"|"PL"|"CF", "label":str,
+#                  "series":pd.Series|None, "highlight":"increase"|"decrease"|"neutral"}
 # ============================================================
 
 def _cagr(series, years=3):
     if series is None: return None
     s = series.dropna()
     if len(s) < 2: return None
-    y = min(years, len(s) - 1)
+    y = min(years, len(s)-1)
     a, b = float(s.iloc[0]), float(s.iloc[-1])
     if a <= 0 or b <= 0 or y == 0: return None
-    return (b / a) ** (1 / y) - 1
+    return (b/a)**(1/y) - 1
 
 def _last(series):
     if series is None or series.empty: return None
@@ -177,36 +176,37 @@ def check_cfo_vs_profit(data):
     flags = []
     cfo, pat = data["cf"].get("cfo"), data["pnl"].get("net_profit")
     if cfo is None or pat is None: return flags
-    avg_cfo, avg_pat = _avg(cfo, 3), _avg(pat, 3)
+    avg_cfo, avg_pat = _avg(cfo,3), _avg(pat,3)
     if avg_cfo is None or avg_pat is None or avg_pat == 0: return flags
     r = avg_cfo / avg_pat
+    ev = [{"panel":"PL","label":"Net Profit","series":pat,"highlight":"neutral"},
+          {"panel":"CF","label":"Operating CF (CFO)","series":cfo,"highlight":"decrease"}]
     if r < 0.7:
-        flags.append(("HIGH", "Low CFO / Net Profit ratio",
-            f"3-year avg operating cash flow is only {r:.0%} of reported profit. "
+        flags.append(("HIGH","Low CFO / Net Profit ratio",
+            f"3-year avg CFO is only {r:.0%} of reported profit. "
             "Healthy companies generate ≥1x CFO vs profit. "
-            "Strong signal of accrual-based earnings inflation — profit not converting to real cash."))
+            "Strong signal of accrual-based earnings inflation.", ev))
     elif r < 0.85:
-        flags.append(("MEDIUM", f"Below-average CFO / Net Profit ({r:.0%})",
-            f"CFO is {r:.0%} of net profit (3yr avg). Below healthy threshold of 85%+. "
-            "Watch this trend — if it keeps falling, it becomes a high-severity flag."))
+        flags.append(("MEDIUM",f"Below-average CFO / Net Profit ({r:.0%})",
+            f"CFO is {r:.0%} of net profit (3yr avg). Below healthy 85%+ threshold.", ev))
     return flags
 
 def check_receivables_vs_revenue(data):
     flags = []
     rev, rec = data["pnl"].get("revenue"), data["bs"].get("receivables")
     if rev is None or rec is None: return flags
-    rg, recg = _cagr(rev, 3), _cagr(rec, 3)
+    rg, recg = _cagr(rev,3), _cagr(rec,3)
     if rg is None or recg is None: return flags
     gap = recg - rg
+    ev = [{"panel":"PL","label":"Revenue","series":rev,"highlight":"neutral"},
+          {"panel":"BS","label":"Receivables","series":rec,"highlight":"increase"}]
     if gap > 0.15:
-        flags.append(("HIGH", "Receivables growing much faster than revenue",
+        flags.append(("HIGH","Receivables growing much faster than revenue",
             f"Revenue 3Y CAGR: {rg:.0%} | Receivables 3Y CAGR: {recg:.0%} — gap of {gap:.0%}. "
-            "Classic channel stuffing or aggressive revenue recognition. "
-            "Check debtor days trend and whether customers are actually paying."))
+            "Classic channel stuffing or aggressive revenue recognition.", ev))
     elif gap > 0.10:
-        flags.append(("MEDIUM", "Receivables growing faster than revenue",
-            f"Revenue CAGR: {rg:.0%} | Receivables CAGR: {recg:.0%} — gap of {gap:.0%}. "
-            "Worth monitoring. Receivables should not consistently outgrow sales."))
+        flags.append(("MEDIUM","Receivables growing faster than revenue",
+            f"Revenue CAGR: {rg:.0%} | Receivables CAGR: {recg:.0%} — gap of {gap:.0%}.", ev))
     return flags
 
 def check_debt_vs_cfo(data):
@@ -215,23 +215,26 @@ def check_debt_vs_cfo(data):
     if debt is None or cfo is None: return flags
     d, c = debt.dropna(), cfo.dropna()
     if len(d) < 3 or len(c) < 3: return flags
-    if float(d.iloc[-1]) > float(d.iloc[0]) * 1.35 and float(c.iloc[-1]) < float(c.iloc[0]) * 0.75:
-        flags.append(("HIGH", "Debt up 35%+ while operating cash flow dropped 25%+",
+    ev = [{"panel":"BS","label":"Total Debt","series":debt,"highlight":"increase"},
+          {"panel":"CF","label":"Operating CF (CFO)","series":cfo,"highlight":"decrease"}]
+    if float(d.iloc[-1]) > float(d.iloc[0])*1.35 and float(c.iloc[-1]) < float(c.iloc[0])*0.75:
+        flags.append(("HIGH","Debt up 35%+ while CFO dropped 25%+",
             "Borrowing significantly more while generating less operating cash. "
-            "Classic pre-distress signal. "
-            "Check if debt is funding operations rather than growth capex — unsustainable."))
+            "Classic pre-distress signal. Check if debt is funding operations rather than capex.", ev))
     return flags
 
 def check_inventory_buildup(data):
     flags = []
     inv, rev = data["bs"].get("inventory"), data["pnl"].get("revenue")
     if inv is None or rev is None: return flags
-    ig, rg = _cagr(inv, 3), _cagr(rev, 3)
+    ig, rg = _cagr(inv,3), _cagr(rev,3)
     if ig is None or rg is None: return flags
+    ev = [{"panel":"PL","label":"Revenue","series":rev,"highlight":"neutral"},
+          {"panel":"BS","label":"Inventory","series":inv,"highlight":"increase"}]
     if ig - rg > 0.15:
-        flags.append(("MEDIUM", f"Inventory growing faster than revenue (gap: {ig-rg:.0%})",
+        flags.append(("MEDIUM",f"Inventory growing faster than revenue (gap: {ig-rg:.0%})",
             f"Inventory 3Y CAGR: {ig:.0%} vs Revenue 3Y CAGR: {rg:.0%}. "
-            "May signal demand slowdown, obsolete stock, or inflated assets."))
+            "May signal demand slowdown or obsolete stock.", ev))
     return flags
 
 def check_interest_coverage(data):
@@ -243,14 +246,14 @@ def check_interest_coverage(data):
     i = abs(_last(intexp)) if _last(intexp) else None
     if e is None or i is None or i == 0: return flags
     icr = e / i
+    ev = [{"panel":"PL","label":"Operating Profit","series":ebit,"highlight":"neutral"},
+          {"panel":"PL","label":"Interest Expense","series":intexp,"highlight":"increase"}]
     if icr < 1.5:
-        flags.append(("HIGH", f"Dangerously low interest coverage ({icr:.1f}x)",
-            f"Operating profit covers interest only {icr:.1f}x. "
-            "Below 1.5x is danger zone — one bad quarter could trigger default."))
+        flags.append(("HIGH",f"Dangerously low interest coverage ({icr:.1f}x)",
+            f"Operating profit covers interest only {icr:.1f}x. Below 1.5x is danger zone.", ev))
     elif icr < 2.5:
-        flags.append(("MEDIUM", f"Weak interest coverage ({icr:.1f}x)",
-            f"Coverage of {icr:.1f}x is below the comfortable 3x+ threshold. "
-            "Monitor closely in a rising rate environment."))
+        flags.append(("MEDIUM",f"Weak interest coverage ({icr:.1f}x)",
+            f"Coverage of {icr:.1f}x is below comfortable 3x+ threshold.", ev))
     return flags
 
 def check_negative_cfo_vs_profit(data):
@@ -259,22 +262,23 @@ def check_negative_cfo_vs_profit(data):
     if cfo is None or pat is None: return flags
     neg_cfo = int((cfo.dropna() < 0).sum())
     pos_pat = int((pat.dropna() > 0).sum())
+    ev = [{"panel":"PL","label":"Net Profit","series":pat,"highlight":"neutral"},
+          {"panel":"CF","label":"Operating CF (CFO)","series":cfo,"highlight":"decrease"}]
     if neg_cfo >= 2 and pos_pat >= 3:
-        flags.append(("HIGH", f"Negative operating cash flow in {neg_cfo} years despite profits",
+        flags.append(("HIGH",f"Negative CFO in {neg_cfo} years despite profits",
             f"Reported profits in {pos_pat} years but negative CFO in {neg_cfo} years. "
-            "One of the strongest forensic accounting red flags. "
-            "Company is printing paper profits but not generating real cash."))
+            "Company is printing paper profits but not generating real cash.", ev))
     return flags
 
 def check_revenue_decline(data):
     flags = []
     rev = data["pnl"].get("revenue")
     if rev is None: return flags
-    rg = _cagr(rev, 3)
+    rg = _cagr(rev,3)
+    ev = [{"panel":"PL","label":"Revenue","series":rev,"highlight":"decrease"}]
     if rg is not None and rg < -0.05:
-        flags.append(("MEDIUM", f"Revenue declining (3Y CAGR: {rg:.1%})",
-            f"Revenue falling at {abs(rg):.1%} per year. "
-            "Determine if cyclical or structural deterioration."))
+        flags.append(("MEDIUM",f"Revenue declining (3Y CAGR: {rg:.1%})",
+            f"Revenue falling at {abs(rg):.1%} per year. Determine if cyclical or structural.", ev))
     return flags
 
 def check_sustained_losses(data):
@@ -283,37 +287,41 @@ def check_sustained_losses(data):
     if pat is None: return flags
     s = pat.dropna()
     loss_years = int((s < 0).sum())
+    ev = [{"panel":"PL","label":"Net Profit","series":pat,"highlight":"decrease"}]
     if loss_years >= 3:
-        flags.append(("HIGH", f"Loss-making in {loss_years} of {len(s)} years",
-            "Sustained losses — check if unit economics are at least improving YoY."))
+        flags.append(("HIGH",f"Loss-making in {loss_years} of {len(s)} years",
+            "Sustained losses — check if unit economics are at least improving YoY.", ev))
     elif loss_years >= 1:
-        flags.append(("MEDIUM", f"Net loss in {loss_years} recent year(s)",
-            "Check if one-off or structural. Look at EBITDA to separate "
-            "operating health from accounting charges."))
+        flags.append(("MEDIUM",f"Net loss in {loss_years} recent year(s)",
+            "Check if one-off or structural. Look at EBITDA to separate operating health.", ev))
     return flags
 
 def check_high_leverage(data):
     flags = []
     de     = data.get("de_ratio")
-    sector = data.get("sector", "")
+    sector = data.get("sector","")
     if "financial" in sector.lower() or "bank" in sector.lower(): return flags
     if de is None: return flags
+    debt   = data["bs"].get("total_debt")
+    equity = data["bs"].get("equity")
+    ev = [{"panel":"BS","label":"Total Debt","series":debt,"highlight":"increase"},
+          {"panel":"BS","label":"Shareholders Equity","series":equity,"highlight":"decrease"}]
     if de > 2.0:
-        flags.append(("HIGH", f"Very high Debt/Equity ({de:.1f}x)",
-            f"D/E of {de:.1f}x is well above safe levels (<1x for non-financial companies). "
-            "High leverage amplifies losses and raises solvency risk."))
+        flags.append(("HIGH",f"Very high Debt/Equity ({de:.1f}x)",
+            f"D/E of {de:.1f}x is well above safe levels (<1x for non-financials). "
+            "High leverage amplifies losses and raises solvency risk.", ev))
     elif de > 1.0:
-        flags.append(("MEDIUM", f"Elevated Debt/Equity ({de:.1f}x)",
-            f"D/E of {de:.1f}x above 1x. Combine with interest coverage and CFO trend for full picture."))
+        flags.append(("MEDIUM",f"Elevated Debt/Equity ({de:.1f}x)",
+            f"D/E of {de:.1f}x above 1x. Combine with interest coverage for full picture.", ev))
     return flags
 
 def check_low_promoter_holding(data):
     flags = []
-    ph     = data.get("promoter_holding_pct", 0)
+    ph = data.get("promoter_holding_pct",0)
     if ph == 0: return flags
     if ph < 25:
-        flags.append(("LOW", f"Low promoter / insider holding ({ph:.1f}%)",
-            f"Promoters hold only {ph:.1f}%. Watch for any further quarterly decline."))
+        flags.append(("LOW",f"Low promoter / insider holding ({ph:.1f}%)",
+            f"Promoters hold only {ph:.1f}%. Watch for any further quarterly decline.", []))
     return flags
 
 def run_all_checks(data):
@@ -326,502 +334,436 @@ def run_all_checks(data):
     ]:
         try: all_flags.extend(fn(data))
         except Exception: pass
-    score = sum({"HIGH":2,"MEDIUM":1,"LOW":0}.get(s,0) for s,_,_ in all_flags)
-    return all_flags, min(score, 10)
+    score = sum({"HIGH":2,"MEDIUM":1,"LOW":0}.get(s,0) for s,_,*_ in all_flags)
+    return all_flags, min(score,10)
 
 
 # ============================================================
-#  SECTION 3 — UI LAYER (Redesigned: sharp fintech aesthetic)
+#  SECTION 3 — UI LAYER
 # ============================================================
 
 st.set_page_config(
     page_title="India Red Flag Dashboard",
-    page_icon="🚨",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="collapsed",
-    menu_items={"About": "Forensic analysis tool for NSE-listed companies. Not investment advice."}
+    menu_items={"About":"Forensic analysis tool for NSE-listed companies. Not investment advice."}
 )
 
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@300;400;600;700;800&display=swap');
 
-/* ── BASE ─────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
-
 html, body, .stApp {
     background-color: #0c0f1a !important;
     color: #e8eaf0 !important;
     font-family: 'Sora', sans-serif !important;
 }
-
-/* kill all default streamlit white backgrounds */
-section[data-testid="stSidebar"],
-.block-container {
-    background: transparent !important;
-    padding-top: 1rem !important;
+section[data-testid="stSidebar"], .block-container {
+    background: transparent !important; padding-top: 1rem !important;
 }
-
-/* ── HERO ─────────────────────────────────────────── */
 .hero {
     background: linear-gradient(135deg, #0d1b3e 0%, #0c0f1a 60%);
-    border: 1px solid #1e2d54;
-    border-radius: 16px;
-    padding: 2rem 2.4rem;
-    margin-bottom: 1.8rem;
-    position: relative;
-    overflow: hidden;
+    border: 1px solid #1e2d54; border-radius: 16px;
+    padding: 2rem 2.4rem; margin-bottom: 1.8rem;
+    position: relative; overflow: hidden;
 }
 .hero::before {
-    content: '';
-    position: absolute;
-    top: -60px; right: -60px;
+    content: ''; position: absolute; top: -60px; right: -60px;
     width: 220px; height: 220px;
-    background: radial-gradient(circle, rgba(239,68,68,0.18) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(239,68,68,0.15) 0%, transparent 70%);
     border-radius: 50%;
 }
-.hero-title {
-    font-size: 1.75rem;
-    font-weight: 800;
-    letter-spacing: -0.5px;
-    color: #ffffff;
-}
+.hero-title { font-size: 1.75rem; font-weight: 800; letter-spacing: -0.5px; color: #ffffff; }
 .hero-title span { color: #ef4444; }
-.hero-sub {
-    font-size: 0.78rem;
-    color: #94a3b8;
-    margin-top: 0.35rem;
-    font-family: 'IBM Plex Mono', monospace;
-    letter-spacing: 0.5px;
-}
+.hero-sub { font-size: 0.78rem; color: #94a3b8; margin-top: 0.35rem; font-family: 'IBM Plex Mono', monospace; }
 .hero-badge {
-    display: inline-block;
-    background: rgba(239,68,68,0.12);
-    border: 1px solid rgba(239,68,68,0.3);
-    color: #fca5a5;
-    font-size: 0.65rem;
-    font-family: 'IBM Plex Mono', monospace;
-    padding: 3px 10px;
-    border-radius: 4px;
-    margin-right: 8px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
+    display: inline-block; background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3);
+    color: #fca5a5; font-size: 0.65rem; font-family: 'IBM Plex Mono', monospace;
+    padding: 3px 10px; border-radius: 4px; margin-right: 8px;
+    text-transform: uppercase; letter-spacing: 1px;
 }
-
-/* ── SEARCH PANEL ─────────────────────────────────── */
 .search-panel {
-    background: #111827;
-    border: 1px solid #1f2937;
-    border-radius: 14px;
-    padding: 1.6rem 1.8rem;
-    margin-bottom: 1.4rem;
+    background: #111827; border: 1px solid #1f2937;
+    border-radius: 14px; padding: 1.6rem 1.8rem; margin-bottom: 1.4rem;
 }
 .panel-label {
-    font-size: 0.7rem;
-    font-family: 'IBM Plex Mono', monospace;
-    color: #64748b;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    margin-bottom: 0.6rem;
+    font-size: 0.7rem; font-family: 'IBM Plex Mono', monospace;
+    color: #64748b; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 0.6rem;
 }
-
-/* ── STREAMLIT WIDGET OVERRIDES ───────────────────── */
-/* Multiselect */
-div[data-baseweb="select"] > div,
-div[data-baseweb="select"] > div:focus-within {
-    background: #1e293b !important;
-    border: 1px solid #334155 !important;
-    border-radius: 8px !important;
-    color: #e2e8f0 !important;
+/* --- Statement panel table styles --- */
+.stmt-panel {
+    background: #111827; border: 1px solid #1f2937;
+    border-radius: 10px; overflow: hidden; margin-bottom: 0;
+}
+.stmt-panel-header {
+    background: #1a2744; padding: 0.5rem 0.8rem;
+    font-size: 0.68rem; font-family: 'IBM Plex Mono', monospace;
+    color: #94a3b8; text-transform: uppercase; letter-spacing: 1.5px;
+    border-bottom: 1px solid #1f2937;
+}
+.stmt-header-row {
+    display: flex; padding: 0.3rem 0.8rem;
+    border-bottom: 1px solid #1a2233;
+    font-size: 0.62rem; font-family: 'IBM Plex Mono', monospace; color: #3d5068;
+    background: #0f1624;
+}
+.stmt-header-row .h-label { flex: 1.6; }
+.stmt-header-row .h-val   { flex: 1; text-align: right; }
+.stmt-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.38rem 0.8rem; border-bottom: 1px solid #0d1422; font-size: 0.76rem;
+}
+.stmt-row:last-child { border-bottom: none; }
+.stmt-row.hl-increase { background: rgba(239,68,68,0.09); border-left: 3px solid #ef4444; }
+.stmt-row.hl-decrease { background: rgba(245,158,11,0.09); border-left: 3px solid #f59e0b; }
+.stmt-row.hl-neutral  { background: rgba(59,130,246,0.09); border-left: 3px solid #3b82f6; }
+.r-label { flex: 1.6; color: #64748b; font-size: 0.74rem; }
+.r-label.hl { color: #e2e8f0; font-weight: 600; }
+.r-val { flex: 1; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: #4b5563; }
+.r-val.positive  { color: #34d399; }
+.r-val.negative  { color: #f87171; }
+.r-val.hl-red    { color: #ef4444; font-weight: 700; }
+.r-val.hl-amber  { color: #f59e0b; font-weight: 700; }
+.r-val.hl-blue   { color: #60a5fa; font-weight: 700; }
+.chg-tag {
+    font-size: 0.58rem; font-family: 'IBM Plex Mono', monospace;
+    margin-left: 3px; vertical-align: middle;
+}
+/* --- Widget overrides --- */
+div[data-baseweb="select"] > div {
+    background: #1e293b !important; border: 1px solid #334155 !important;
+    border-radius: 8px !important; color: #e2e8f0 !important;
 }
 div[data-baseweb="select"] span { color: #e2e8f0 !important; }
 div[data-baseweb="select"] svg { fill: #64748b !important; }
-
-/* Text input */
 .stTextInput input {
-    background: #1e293b !important;
-    border: 1px solid #334155 !important;
-    border-radius: 8px !important;
-    color: #e2e8f0 !important;
-    font-family: 'IBM Plex Mono', monospace !important;
-    font-size: 0.85rem !important;
-    padding: 0.55rem 0.9rem !important;
+    background: #1e293b !important; border: 1px solid #334155 !important;
+    border-radius: 8px !important; color: #e2e8f0 !important;
+    font-family: 'IBM Plex Mono', monospace !important; font-size: 0.85rem !important;
 }
 .stTextInput input::placeholder { color: #475569 !important; }
 .stTextInput input:focus { border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59,130,246,0.15) !important; }
-
-/* Labels */
-label[data-testid="stWidgetLabel"] > div > p,
-.stTextInput label { color: #94a3b8 !important; font-size: 0.75rem !important; }
-
-/* Buttons */
+label[data-testid="stWidgetLabel"] > div > p, .stTextInput label { color: #94a3b8 !important; font-size: 0.75rem !important; }
 .stButton > button {
-    background: #1d4ed8 !important;
-    color: #ffffff !important;
-    border: none !important;
-    border-radius: 8px !important;
-    font-family: 'Sora', sans-serif !important;
-    font-weight: 600 !important;
-    font-size: 0.85rem !important;
-    padding: 0.55rem 1.4rem !important;
+    background: #1d4ed8 !important; color: #ffffff !important;
+    border: none !important; border-radius: 8px !important;
+    font-family: 'Sora', sans-serif !important; font-weight: 600 !important;
+    font-size: 0.85rem !important; padding: 0.55rem 1.4rem !important;
     transition: background 0.2s, transform 0.15s !important;
-    letter-spacing: 0.2px !important;
 }
-.stButton > button:hover {
-    background: #2563eb !important;
-    transform: translateY(-1px) !important;
-}
-.stButton > button:active { transform: translateY(0) !important; }
-
-/* Download button */
+.stButton > button:hover { background: #2563eb !important; transform: translateY(-1px) !important; }
 .stDownloadButton > button {
-    background: #064e3b !important;
-    color: #6ee7b7 !important;
-    border: 1px solid #065f46 !important;
-    border-radius: 8px !important;
-    font-weight: 600 !important;
+    background: #064e3b !important; color: #6ee7b7 !important;
+    border: 1px solid #065f46 !important; border-radius: 8px !important; font-weight: 600 !important;
 }
-.stDownloadButton > button:hover { background: #065f46 !important; }
-
-/* Tabs */
 .stTabs [data-baseweb="tab-list"] {
-    background: #111827 !important;
-    border-radius: 10px !important;
-    padding: 4px !important;
-    gap: 2px !important;
-    border: 1px solid #1f2937 !important;
+    background: #111827 !important; border-radius: 10px !important;
+    padding: 4px !important; gap: 2px !important; border: 1px solid #1f2937 !important;
 }
 .stTabs [data-baseweb="tab"] {
-    background: transparent !important;
-    color: #64748b !important;
-    border-radius: 7px !important;
-    font-family: 'Sora', sans-serif !important;
-    font-size: 0.82rem !important;
-    font-weight: 500 !important;
-    padding: 0.45rem 1rem !important;
-    transition: all 0.2s !important;
+    background: transparent !important; color: #64748b !important;
+    border-radius: 7px !important; font-family: 'Sora', sans-serif !important;
+    font-size: 0.82rem !important; font-weight: 500 !important;
+    padding: 0.45rem 1rem !important; transition: all 0.2s !important;
 }
-.stTabs [aria-selected="true"] {
-    background: #1e3a8a !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
-}
-
-/* Expanders */
+.stTabs [aria-selected="true"] { background: #1e3a8a !important; color: #ffffff !important; font-weight: 600 !important; }
 details {
-    background: #111827 !important;
-    border: 1px solid #1f2937 !important;
-    border-radius: 12px !important;
-    overflow: hidden !important;
-    margin-bottom: 0.75rem !important;
+    background: #111827 !important; border: 1px solid #1f2937 !important;
+    border-radius: 12px !important; overflow: hidden !important; margin-bottom: 0.75rem !important;
 }
 details summary {
-    background: #111827 !important;
-    color: #e2e8f0 !important;
-    font-weight: 600 !important;
-    font-size: 0.9rem !important;
-    padding: 0.9rem 1.2rem !important;
-    cursor: pointer !important;
+    background: #111827 !important; color: #e2e8f0 !important;
+    font-weight: 600 !important; font-size: 0.9rem !important;
+    padding: 0.9rem 1.2rem !important; cursor: pointer !important;
 }
 details summary:hover { background: #1e293b !important; }
 details[open] summary { border-bottom: 1px solid #1f2937 !important; }
 details > div { background: #111827 !important; padding: 1rem 1.2rem !important; }
-
-/* Metrics */
 [data-testid="stMetric"] {
-    background: #1e293b !important;
-    border: 1px solid #334155 !important;
-    border-radius: 10px !important;
-    padding: 0.75rem 1rem !important;
+    background: #1e293b !important; border: 1px solid #334155 !important;
+    border-radius: 10px !important; padding: 0.75rem 1rem !important;
 }
 [data-testid="stMetricLabel"] { color: #94a3b8 !important; font-size: 0.72rem !important; }
 [data-testid="stMetricValue"] { color: #f1f5f9 !important; font-size: 1.3rem !important; font-weight: 700 !important; }
-
-/* Selectbox */
-div[data-baseweb="select"] [role="listbox"] {
-    background: #1e293b !important;
-    border: 1px solid #334155 !important;
-}
-div[data-baseweb="select"] [role="option"] { color: #e2e8f0 !important; }
-div[data-baseweb="select"] [role="option"]:hover { background: #334155 !important; }
-
-/* Progress bar */
 .stProgress > div > div > div { background: #3b82f6 !important; }
-
-/* Spinner text */
-.stSpinner > div { color: #94a3b8 !important; }
-
-/* Success / error / warning alerts */
-.stSuccess { background: #052e16 !important; color: #86efac !important; border: 1px solid #166534 !important; border-radius: 8px !important; }
-.stError   { background: #1c0a0a !important; color: #fca5a5 !important; border: 1px solid #7f1d1d !important; border-radius: 8px !important; }
-.stWarning { background: #1c1208 !important; color: #fde68a !important; border: 1px solid #78350f !important; border-radius: 8px !important; }
-
-/* Divider */
 hr { border-color: #1f2937 !important; }
-
-/* Dataframe */
-[data-testid="stDataFrame"] { border: 1px solid #1f2937 !important; border-radius: 10px !important; overflow: hidden !important; }
-
-/* Caption / small text */
 .stCaption, small { color: #64748b !important; font-size: 0.72rem !important; }
-
-/* ── SCORE CARD ───────────────────────────────────── */
 .score-card {
-    background: #111827;
-    border: 1px solid #1f2937;
-    border-radius: 14px;
-    padding: 1.2rem 0.8rem;
-    text-align: center;
+    background: #111827; border: 1px solid #1f2937; border-radius: 14px;
+    padding: 1.2rem 0.8rem; text-align: center;
     transition: transform 0.2s, border-color 0.2s;
-    position: relative;
-    overflow: hidden;
 }
-.score-card:hover {
-    transform: translateY(-3px);
-    border-color: #334155;
+.score-card:hover { transform: translateY(-3px); border-color: #334155; }
+.ticker-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: #475569; text-transform: uppercase; letter-spacing: 1px; }
+.company-name { font-size: 0.82rem; font-weight: 600; color: #cbd5e1; margin: 0.4rem 0; line-height: 1.3; }
+.big-score { font-size: 2.5rem; font-weight: 800; line-height: 1; margin: 0.3rem 0; }
+.score-denom { font-size: 0.9rem; color: #475569; font-weight: 400; }
+.risk-pill {
+    display: inline-block; font-size: 0.62rem; font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600; letter-spacing: 1.2px; padding: 3px 12px; border-radius: 20px;
+    text-transform: uppercase; margin-top: 0.3rem;
 }
-.score-card .ticker-label {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.65rem;
-    color: #475569;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-.score-card .company-name {
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: #cbd5e1;
-    margin: 0.4rem 0;
-    line-height: 1.3;
-}
-.score-card .big-score {
-    font-size: 2.5rem;
-    font-weight: 800;
-    line-height: 1;
-    margin: 0.3rem 0;
-}
-.score-card .score-denom {
-    font-size: 0.9rem;
-    color: #475569;
-    font-weight: 400;
-}
-.score-card .risk-pill {
-    display: inline-block;
-    font-size: 0.62rem;
-    font-family: 'IBM Plex Mono', monospace;
-    font-weight: 600;
-    letter-spacing: 1.2px;
-    padding: 3px 12px;
-    border-radius: 20px;
-    text-transform: uppercase;
-    margin-top: 0.3rem;
-}
-.score-card .flag-count {
-    font-size: 0.68rem;
-    color: #475569;
-    margin-top: 0.5rem;
-}
-
-/* ── FLAGS ────────────────────────────────────────── */
-.flag-wrap { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.5rem; }
-.flag-item {
-    border-radius: 10px;
-    padding: 0.85rem 1rem;
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 0 0.85rem;
-    align-items: start;
-}
-.flag-HIGH {
-    background: rgba(220,38,38,0.1);
-    border: 1px solid rgba(220,38,38,0.3);
-}
-.flag-MEDIUM {
-    background: rgba(217,119,6,0.1);
-    border: 1px solid rgba(217,119,6,0.3);
-}
-.flag-LOW {
-    background: rgba(37,99,235,0.1);
-    border: 1px solid rgba(37,99,235,0.25);
-}
-.flag-dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    margin-top: 5px;
-    flex-shrink: 0;
-}
-.flag-HIGH .flag-dot  { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.5); }
-.flag-MEDIUM .flag-dot { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.5); }
-.flag-LOW .flag-dot   { background: #3b82f6; box-shadow: 0 0 6px rgba(59,130,246,0.5); }
-.flag-sev {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.6rem;
-    font-weight: 600;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    margin-bottom: 3px;
-    display: block;
-}
-.flag-HIGH  .flag-sev { color: #f87171; }
-.flag-MEDIUM .flag-sev { color: #fbbf24; }
-.flag-LOW   .flag-sev { color: #60a5fa; }
-.flag-title { font-weight: 600; font-size: 0.88rem; color: #e2e8f0; }
-.flag-detail { font-size: 0.78rem; color: #94a3b8; margin-top: 3px; line-height: 1.5; }
-
-/* ── SECTION HEADINGS ─────────────────────────────── */
+.flag-count { font-size: 0.68rem; color: #475569; margin-top: 0.5rem; }
 .section-heading {
-    font-size: 0.7rem;
-    font-family: 'IBM Plex Mono', monospace;
-    color: #475569;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    margin: 1.2rem 0 0.7rem;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    font-size: 0.7rem; font-family: 'IBM Plex Mono', monospace; color: #475569;
+    text-transform: uppercase; letter-spacing: 2px;
+    margin: 1.2rem 0 0.7rem; display: flex; align-items: center; gap: 8px;
 }
-.section-heading::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: #1f2937;
-}
-
-/* ── CLEAN BADGE ──────────────────────────────────── */
-.clean-badge {
-    background: rgba(16,185,129,0.1);
-    border: 1px solid rgba(16,185,129,0.25);
-    border-radius: 8px;
-    padding: 0.7rem 1rem;
-    color: #6ee7b7;
-    font-size: 0.83rem;
-    font-weight: 600;
+.section-heading::after { content: ''; flex: 1; height: 1px; background: #1f2937; }
+.evidence-lede {
+    font-size: 0.66rem; font-family: 'IBM Plex Mono', monospace;
+    color: #3d5068; text-transform: uppercase; letter-spacing: 1.5px;
+    margin: 0.6rem 0 0.4rem 0.1rem;
 }
 </style>
 """, unsafe_allow_html=True)
 
 
-# ── helpers ──────────────────────────────────────────────────────────
+# ── helpers ───────────────────────────────────────────────────────
 
-def make_bar_chart(series, title, color):
-    if series is None or series.empty:
-        return None
-    years  = [str(d)[:4] for d in series.index]
-    values = [round(v, 0) for v in series.values]
-    fig = go.Figure(go.Bar(
-        x=years, y=values,
-        marker_color=color,
-        marker_line_width=0,
-        text=values,
-        textposition='outside',
-        textfont=dict(color='#94a3b8', size=9, family='IBM Plex Mono')
-    ))
-    fig.update_layout(
-        title=dict(text=title, font=dict(size=12, color='#cbd5e1', family='Sora'), x=0.5),
-        height=240,
-        margin=dict(t=40, b=20, l=30, r=10),
-        paper_bgcolor='#111827',
-        plot_bgcolor='#111827',
-        yaxis_title="₹ Cr",
-        font=dict(color='#94a3b8', family='Sora'),
-        xaxis=dict(tickangle=0, tickfont=dict(color='#64748b', size=9), gridcolor='#1f2937', showgrid=False),
-        yaxis=dict(gridcolor='#1f2937', zerolinecolor='#334155', tickfont=dict(color='#64748b', size=9)),
-    )
-    return fig
+def fmt_cr(v):
+    if v is None or (isinstance(v, float) and pd.isna(v)): return "—"
+    v = float(v)
+    if abs(v) >= 100000: return f"₹{v/100000:.1f}L Cr"
+    if abs(v) >= 1000:   return f"₹{v/1000:.1f}K Cr"
+    return f"₹{v:,.0f} Cr"
 
 
 def risk_gauge(score):
     color = "#ef4444" if score >= 6 else "#f59e0b" if score >= 3 else "#10b981"
     fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=score,
-        title={'text': "Risk Score", 'font': {'size': 11, 'color': '#94a3b8', 'family': 'Sora'}},
-        number={'font': {'size': 28, 'color': color, 'family': 'Sora'}, 'suffix': '/10'},
-        domain={'x': [0, 1], 'y': [0, 1]},
+        mode="gauge+number", value=score,
+        title={'text':"Risk Score",'font':{'size':11,'color':'#94a3b8','family':'Sora'}},
+        number={'font':{'size':28,'color':color,'family':'Sora'},'suffix':'/10'},
+        domain={'x':[0,1],'y':[0,1]},
         gauge={
-            'axis': {'range': [0, 10], 'tickcolor': '#334155', 'tickfont': {'color': '#475569', 'size': 8}},
-            'bar': {'color': color, 'thickness': 0.28},
-            'bgcolor': '#0c0f1a',
-            'borderwidth': 0,
-            'steps': [
-                {'range': [0, 3],  'color': 'rgba(16,185,129,0.08)'},
-                {'range': [3, 6],  'color': 'rgba(245,158,11,0.08)'},
-                {'range': [6, 10], 'color': 'rgba(239,68,68,0.08)'},
-            ]
+            'axis':{'range':[0,10],'tickcolor':'#334155','tickfont':{'color':'#475569','size':8}},
+            'bar':{'color':color,'thickness':0.28}, 'bgcolor':'#0c0f1a','borderwidth':0,
+            'steps':[{'range':[0,3],'color':'rgba(16,185,129,0.08)'},
+                     {'range':[3,6],'color':'rgba(245,158,11,0.08)'},
+                     {'range':[6,10],'color':'rgba(239,68,68,0.08)'}]
         }
     ))
-    fig.update_layout(
-        height=195,
-        margin=dict(t=30, b=5, l=15, r=15),
-        paper_bgcolor='#111827',
-        font=dict(color='#94a3b8')
-    )
+    fig.update_layout(height=195, margin=dict(t=30,b=5,l=15,r=15),
+                      paper_bgcolor='#111827', font=dict(color='#94a3b8'))
     return fig
 
 
 def score_card_html(symbol, name, score, flag_count):
     risk_label = "HIGH RISK" if score >= 6 else "WATCH" if score >= 3 else "CLEAN"
-    score_color = "#ef4444" if score >= 6 else "#f59e0b" if score >= 3 else "#10b981"
-    pill_bg = (
-        "rgba(239,68,68,0.12)" if score >= 6 else
-        "rgba(245,158,11,0.12)" if score >= 3 else
-        "rgba(16,185,129,0.12)"
-    )
-    pill_border = (
-        "rgba(239,68,68,0.35)" if score >= 6 else
-        "rgba(245,158,11,0.35)" if score >= 3 else
-        "rgba(16,185,129,0.35)"
-    )
-    return f"""
-    <div class="score-card">
+    sc = "#ef4444" if score >= 6 else "#f59e0b" if score >= 3 else "#10b981"
+    r,g,b = (239,68,68) if score>=6 else (245,158,11) if score>=3 else (16,185,129)
+    return f"""<div class="score-card">
         <div class="ticker-label">{symbol.replace('.NS','').replace('.BO','')}</div>
         <div class="company-name">{name[:30]}</div>
-        <div class="big-score" style="color:{score_color};">{score}<span class="score-denom">/10</span></div>
-        <div>
-            <span class="risk-pill" style="background:{pill_bg}; border:1px solid {pill_border}; color:{score_color};">{risk_label}</span>
-        </div>
+        <div class="big-score" style="color:{sc};">{score}<span class="score-denom">/10</span></div>
+        <div><span class="risk-pill"
+            style="background:rgba({r},{g},{b},0.12);border:1px solid rgba({r},{g},{b},0.35);color:{sc};">
+            {risk_label}</span></div>
         <div class="flag-count">🚩 {flag_count} flag(s)</div>
-    </div>
+    </div>"""
+
+
+def make_mini_bar(series, title, hl_type):
+    """Small bar chart — last bar gets accent colour."""
+    if series is None or series.dropna().empty: return None
+    s = series.dropna().sort_index()
+    years  = [str(d)[:4] for d in s.index]
+    values = list(s.values)
+    acc = "#ef4444" if hl_type=="increase" else "#f59e0b" if hl_type=="decrease" else "#3b82f6"
+    base_rgb = (239,68,68) if hl_type=="increase" else (245,158,11) if hl_type=="decrease" else (59,130,246)
+    colors = [f"rgba({base_rgb[0]},{base_rgb[1]},{base_rgb[2]},0.35)"] * len(values)
+    colors[-1] = acc
+    fig = go.Figure(go.Bar(
+        x=years, y=values, marker_color=colors, marker_line_width=0,
+        text=[fmt_cr(v) for v in values], textposition='outside',
+        textfont=dict(color='#94a3b8', size=8, family='IBM Plex Mono')
+    ))
+    fig.update_layout(
+        title=dict(text=title, font=dict(size=10, color='#cbd5e1', family='Sora'), x=0.5),
+        height=200, margin=dict(t=32, b=8, l=8, r=8),
+        paper_bgcolor='#111827', plot_bgcolor='#111827',
+        font=dict(color='#94a3b8', family='Sora'),
+        xaxis=dict(tickangle=0, tickfont=dict(color='#64748b', size=8), showgrid=False),
+        yaxis=dict(gridcolor='#1a2233', zerolinecolor='#334155',
+                   tickfont=dict(color='#64748b', size=8), showticklabels=False),
+        showlegend=False,
+    )
+    return fig
+
+
+# ── Financial statement panel definitions ────────────────────────
+
+PANEL_ROWS = {
+    "BS": [
+        ("Total Debt",          "total_debt"),
+        ("Shareholders Equity", "equity"),
+        ("Receivables",         "receivables"),
+        ("Inventory",           "inventory"),
+        ("Cash & Equivalents",  "cash"),
+        ("Current Assets",      "current_assets"),
+        ("Current Liabilities", "current_liab"),
+        ("Total Assets",        "total_assets"),
+    ],
+    "PL": [
+        ("Revenue",             "revenue"),
+        ("EBITDA",              "ebitda"),
+        ("Operating Profit",    "operating_profit"),
+        ("Interest Expense",    "interest_exp"),
+        ("Depreciation",        "depreciation"),
+        ("Net Profit",          "net_profit"),
+    ],
+    "CF": [
+        ("Operating CF (CFO)",  "cfo"),
+        ("CapEx",               "capex"),
+        ("Free Cash Flow",      "fcf"),
+    ],
+}
+PANEL_SRC   = {"BS":"bs","PL":"pnl","CF":"cf"}
+PANEL_ICON  = {"BS":"🏦","PL":"📊","CF":"💰"}
+PANEL_TITLE = {"BS":"Balance Sheet","PL":"P & L","CF":"Cash Flow"}
+
+
+def _get_val(data, panel_key, row_key, year_str):
+    src = data.get(PANEL_SRC[panel_key], {})
+    s   = src.get(row_key)
+    if s is None: return None
+    s2  = s.dropna()
+    for idx in s2.index:
+        if str(idx)[:4] == year_str:
+            return float(s2[idx])
+    return None
+
+
+def render_stmt_panel(panel_key, data, hl_labels, hl_type_map, n_years=3):
     """
-
-
-def flag_html(sev, title, detail):
-    """Returns HTML string — only use OUTSIDE expanders via st.markdown unsafe_allow_html."""
-    return f"""
-    <div class="flag-item flag-{sev}">
-        <div class="flag-dot"></div>
-        <div>
-            <span class="flag-sev">{sev}</span>
-            <div class="flag-title">{title}</div>
-            <div class="flag-detail">{detail}</div>
-        </div>
-    </div>
+    Render a mini financial statement table.
+    hl_labels  : set of label strings to highlight
+    hl_type_map: label -> 'increase'|'decrease'|'neutral'
     """
+    src   = data.get(PANEL_SRC[panel_key], {})
+    rows  = PANEL_ROWS[panel_key]
 
-
-def render_flags_native(flags):
-    """Render flags using pure Streamlit widgets — safe inside expanders."""
-    if not flags:
-        st.success("✅ No red flags triggered for this company.")
+    # collect years
+    all_years = set()
+    for _, key in rows:
+        s = src.get(key)
+        if s is not None:
+            for idx in s.dropna().index:
+                all_years.add(str(idx)[:4])
+    years = sorted(all_years)[-n_years:]
+    if not years:
+        st.markdown(f'<div class="stmt-panel"><div class="stmt-panel-header">'
+                    f'{PANEL_ICON[panel_key]} {PANEL_TITLE[panel_key]}</div>'
+                    f'<div class="stmt-row"><span class="r-label" style="color:#3d5068">No data</span></div></div>',
+                    unsafe_allow_html=True)
         return
-    for sev, title, detail in flags:
-        color_map = {"HIGH": "#ef4444", "MEDIUM": "#f59e0b", "LOW": "#3b82f6"}
-        bg_map    = {"HIGH": "rgba(220,38,38,0.08)", "MEDIUM": "rgba(217,119,6,0.08)", "LOW": "rgba(37,99,235,0.08)"}
-        border_map= {"HIGH": "rgba(220,38,38,0.35)", "MEDIUM": "rgba(217,119,6,0.35)", "LOW": "rgba(37,99,235,0.3)"}
-        c = color_map.get(sev, "#94a3b8")
-        bg = bg_map.get(sev, "transparent")
-        bd = border_map.get(sev, "#334155")
-        st.markdown(
-            f"""<div style="background:{bg}; border:1px solid {bd}; border-radius:10px;
-                           padding:0.85rem 1rem; margin-bottom:0.5rem;">
-                  <span style="font-family:'IBM Plex Mono',monospace; font-size:0.6rem;
-                               font-weight:700; color:{c}; letter-spacing:1px;
-                               text-transform:uppercase;">{sev}</span>
-                  <div style="font-weight:600; font-size:0.88rem; color:#e2e8f0; margin-top:3px;">{title}</div>
-                  <div style="font-size:0.78rem; color:#94a3b8; margin-top:4px; line-height:1.55;">{detail}</div>
-                </div>""",
-            unsafe_allow_html=True
-        )
+
+    year_headers = "".join(f'<span class="h-val">{y}</span>' for y in years)
+    html = (f'<div class="stmt-panel">'
+            f'<div class="stmt-panel-header">{PANEL_ICON[panel_key]} {PANEL_TITLE[panel_key]}</div>'
+            f'<div class="stmt-header-row"><span class="h-label">Particulars</span>{year_headers}</div>')
+
+    for label, key in rows:
+        is_hl   = label in hl_labels
+        hl_type = hl_type_map.get(label, "neutral") if is_hl else None
+        row_cls = f"stmt-row hl-{hl_type}" if is_hl else "stmt-row"
+        lbl_cls = "r-label hl" if is_hl else "r-label"
+
+        vals_html = ""
+        prev_val  = None
+        for y in years:
+            val = _get_val(data, panel_key, key, y)
+            # value colour
+            if val is None:
+                val_str = "—"
+                val_cls = "r-val"
+                chg_html = ""
+            else:
+                val_str = fmt_cr(val)
+                if is_hl:
+                    val_cls = f"r-val hl-{'red' if hl_type=='increase' else 'amber' if hl_type=='decrease' else 'blue'}"
+                elif val < 0:
+                    val_cls = "r-val negative"
+                else:
+                    val_cls = "r-val positive" if val > 0 else "r-val"
+                # change tag vs previous year
+                chg_html = ""
+                if is_hl and prev_val is not None and prev_val != 0:
+                    chg = (val - prev_val) / abs(prev_val)
+                    arrow = "▲" if chg > 0 else "▼"
+                    # for increase-flag: up is bad (red), for decrease-flag: down is bad (red)
+                    bad = (chg > 0 and hl_type=="increase") or (chg < 0 and hl_type=="decrease")
+                    chg_color = "#ef4444" if bad else "#34d399"
+                    chg_html = (f'<span class="chg-tag" style="color:{chg_color}">'
+                                f'{arrow}{abs(chg):.0%}</span>')
+
+            vals_html += f'<span class="{val_cls}">{val_str}{chg_html}</span>'
+            prev_val = val
+
+        html += f'<div class="{row_cls}"><span class="{lbl_cls}">{label}</span>{vals_html}</div>'
+
+    html += "</div>"
+    st.markdown(html, unsafe_allow_html=True)
+
+
+def render_flag_with_evidence(flag_tuple, data):
+    sev, title, detail = flag_tuple[0], flag_tuple[1], flag_tuple[2]
+    evidence = flag_tuple[3] if len(flag_tuple) > 3 else []
+
+    color_map  = {"HIGH":"#ef4444","MEDIUM":"#f59e0b","LOW":"#3b82f6"}
+    bg_map     = {"HIGH":"rgba(220,38,38,0.08)","MEDIUM":"rgba(217,119,6,0.08)","LOW":"rgba(37,99,235,0.08)"}
+    border_map = {"HIGH":"rgba(220,38,38,0.3)","MEDIUM":"rgba(217,119,6,0.3)","LOW":"rgba(37,99,235,0.25)"}
+
+    c  = color_map.get(sev,"#94a3b8")
+    bg = bg_map.get(sev,"transparent")
+    bd = border_map.get(sev,"#334155")
+
+    st.markdown(
+        f'<div style="background:{bg};border:1px solid {bd};border-radius:10px;'
+        f'padding:0.9rem 1rem;margin-bottom:0.5rem;">'
+        f'<span style="font-family:\'IBM Plex Mono\',monospace;font-size:0.6rem;font-weight:700;'
+        f'color:{c};letter-spacing:1px;text-transform:uppercase;">{sev}</span>'
+        f'<div style="font-weight:600;font-size:0.9rem;color:#e2e8f0;margin-top:3px;">{title}</div>'
+        f'<div style="font-size:0.78rem;color:#94a3b8;margin-top:4px;line-height:1.55;">{detail}</div>'
+        f'</div>', unsafe_allow_html=True)
+
+    if not evidence:
+        return
+
+    # Organise which panels need highlighting
+    panels_info = {}
+    for ev in evidence:
+        p = ev["panel"]
+        if p not in panels_info:
+            panels_info[p] = {"labels": set(), "type_map": {}}
+        panels_info[p]["labels"].add(ev["label"])
+        panels_info[p]["type_map"][ev["label"]] = ev["highlight"]
+
+    st.markdown('<div class="evidence-lede">↳ Evidence in Financial Statements</div>',
+                unsafe_allow_html=True)
+
+    # Always show all 3 panels side by side
+    cols = st.columns(3)
+    for i, pk in enumerate(["BS","PL","CF"]):
+        with cols[i]:
+            info = panels_info.get(pk, {"labels":set(),"type_map":{}})
+            render_stmt_panel(pk, data, info["labels"], info["type_map"])
+
+    # Mini bar charts for each highlighted series
+    ev_series = [e for e in evidence if e.get("series") is not None and
+                 not e["series"].dropna().empty]
+    if ev_series:
+        chart_cols = st.columns(min(3, len(ev_series)))
+        for i, ev in enumerate(ev_series[:3]):
+            fig = make_mini_bar(ev["series"], ev["label"], ev["highlight"])
+            if fig:
+                chart_cols[i].plotly_chart(fig, use_container_width=True,
+                                           config={"displayModeBar":False})
+
+    st.markdown("<div style='height:2px'></div>", unsafe_allow_html=True)
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -832,37 +774,33 @@ def analyse_ticker(ticker):
     return {**data, "flags": flags, "score": score}
 
 
-# ── Bootstrap ──────────────────────────────────────────────────────
+# ── Bootstrap ─────────────────────────────────────────────────────
 
 with st.spinner("Loading NSE company list…"):
     ALL_COMPANIES = load_nse_company_list()
 
-# ── Hero ───────────────────────────────────────────────────────────
 st.markdown(f"""
 <div class="hero">
-    <div class="hero-title">India <span>Red Flag</span> Dashboard</div>
-    <div class="hero-sub" style="margin-top:0.7rem;">
-        <span class="hero-badge">NSE</span>
-        <span class="hero-badge">{len(ALL_COMPANIES):,} companies</span>
-        <span class="hero-badge">10 forensic checks</span>
-        &nbsp;·&nbsp; {datetime.now().strftime('%d %b %Y, %I:%M %p')}
-    </div>
-</div>
-""", unsafe_allow_html=True)
+  <div class="hero-title">India <span>Red Flag</span> Dashboard</div>
+  <div class="hero-sub" style="margin-top:0.7rem;">
+    <span class="hero-badge">NSE</span>
+    <span class="hero-badge">{len(ALL_COMPANIES):,} companies</span>
+    <span class="hero-badge">10 forensic checks</span>
+    &nbsp;·&nbsp; {datetime.now().strftime('%d %b %Y, %I:%M %p')}
+  </div>
+</div>""", unsafe_allow_html=True)
 
-# ── Tabs ───────────────────────────────────────────────────────────
-tab_search, tab_sector, tab_about = st.tabs(["🔍  Search & Analyse", "📊  Sector Scanner", "ℹ️  About"])
+tab_search, tab_sector, tab_about = st.tabs(
+    ["🔍  Search & Analyse", "📊  Sector Scanner", "ℹ️  About"])
 
 
 # ═══════════════════════════════════════════════════════════════════
 #  TAB 1 — SEARCH & ANALYSE
 # ═══════════════════════════════════════════════════════════════════
 with tab_search:
-
     st.markdown('<div class="search-panel">', unsafe_allow_html=True)
     st.markdown('<div class="panel-label">Search companies</div>', unsafe_allow_html=True)
-
-    col1, col2 = st.columns([3, 1])
+    col1, col2 = st.columns([3,1])
     with col1:
         selected_names = st.multiselect(
             "Company name",
@@ -870,16 +808,14 @@ with tab_search:
             placeholder="Type to search by name…",
         )
         manual = st.text_input(
-            "NSE tickers (comma-separated)",
-            placeholder="e.g. RELIANCE, TCS, ZOMATO"
+            "Or enter NSE tickers (comma-separated)",
+            placeholder="e.g. TATACOMM, ZOMATO, PAYTM"
         )
     with col2:
         st.caption("💡 Select multiple to compare")
-        st.caption("📌 Enter tickers without .NS")
-
+        st.caption("📌 No .NS needed")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Resolve tickers
     tickers = []
     if selected_names:
         tickers += [ALL_COMPANIES[n] for n in selected_names]
@@ -889,19 +825,19 @@ with tab_search:
             if resolved:
                 tickers.append(resolved)
             else:
-                st.warning(f"⚠️ Invalid or unresolvable ticker: **{raw}**")
+                st.warning(f"⚠️ Could not resolve ticker: **{raw}** — try the dropdown instead.")
     tickers = list(dict.fromkeys(tickers))
 
     if tickers and st.button(f"Analyse {len(tickers)} company/companies →", type="primary"):
         results = []
         prog = st.progress(0)
         for i, t in enumerate(tickers):
-            prog.progress((i + 1) / len(tickers), f"Fetching {t}…")
+            prog.progress((i+1)/len(tickers), f"Fetching {t}…")
             r = analyse_ticker(t)
             if r:
                 results.append(r)
             else:
-                st.error(f"No data available for **{t}** — check the ticker.")
+                st.error(f"No data for **{t}**")
             time.sleep(0.3)
         prog.empty()
 
@@ -911,68 +847,50 @@ with tab_search:
 
         results.sort(key=lambda x: x["score"], reverse=True)
 
-        # ── Risk summary cards ──────────────────────────────────
         st.markdown('<div class="section-heading">Risk Summary</div>', unsafe_allow_html=True)
         cols = st.columns(min(5, len(results)))
         for idx, r in enumerate(results):
             cols[idx % 5].markdown(
-                score_card_html(r["ticker"], r["name"], r["score"], len(r["flags"])),
-                unsafe_allow_html=True
-            )
-
+                score_card_html(r["ticker"],r["name"],r["score"],len(r["flags"])),
+                unsafe_allow_html=True)
         st.divider()
 
-        # ── Per-company detail ──────────────────────────────────
         for r in results:
-            icon = "🔴" if r["score"] >= 6 else "🟡" if r["score"] >= 3 else "🟢"
+            icon = "🔴" if r["score"]>=6 else "🟡" if r["score"]>=3 else "🟢"
             with st.expander(
                 f"{icon}  {r['name']}  ({r['ticker'].replace('.NS','')})   |   Score: {r['score']} / 10",
-                expanded=(r["score"] >= 6)
+                expanded=(r["score"]>=6)
             ):
-                # Metrics row
                 c1, c2, c3 = st.columns(3)
                 with c1:
-                    st.metric("Market Cap", f"₹{r['mcap_cr']:,.0f} Cr" if r["mcap_cr"] else "—")
-                    st.metric("Debt / Equity", f"{r['de_ratio']:.2f}x" if r["de_ratio"] else "—")
+                    st.metric("Market Cap",    f"₹{r['mcap_cr']:,.0f} Cr" if r["mcap_cr"] else "—")
+                    st.metric("Debt / Equity", f"{r['de_ratio']:.2f}x"    if r["de_ratio"] else "—")
                 with c2:
                     st.metric("Promoter Holding", f"{r['promoter_holding_pct']:.1f}%" if r["promoter_holding_pct"] else "—")
                     st.metric("Sector", r["sector"])
                 with c3:
                     st.plotly_chart(risk_gauge(r["score"]), use_container_width=True,
-                                    config={"displayModeBar": False})
+                                    config={"displayModeBar":False})
 
-                # Charts
-                st.markdown('<div class="section-heading">Financial Trends (₹ Crore)</div>', unsafe_allow_html=True)
-                col_ch1, col_ch2, col_ch3 = st.columns(3)
-                charts = [
-                    (r["pnl"].get("revenue"),    "Revenue",              "#3b82f6"),
-                    (r["pnl"].get("net_profit"),  "Net Profit",           "#10b981"),
-                    (r["cf"].get("cfo"),           "Operating Cash Flow",  "#f59e0b"),
-                ]
-                for i, (series, title, color) in enumerate(charts):
-                    fig = make_bar_chart(series, title, color)
-                    if fig:
-                        [col_ch1, col_ch2, col_ch3][i].plotly_chart(
-                            fig, use_container_width=True, config={"displayModeBar": False})
-                    else:
-                        [col_ch1, col_ch2, col_ch3][i].caption("No data available")
+                st.markdown('<div class="section-heading">Red Flags with Financial Evidence</div>',
+                            unsafe_allow_html=True)
+                if not r["flags"]:
+                    st.success("✅ No red flags triggered for this company.")
+                else:
+                    for flag in r["flags"]:
+                        render_flag_with_evidence(flag, r)
 
-                # Flags
-                st.markdown('<div class="section-heading">Red Flags</div>', unsafe_allow_html=True)
-                render_flags_native(r["flags"])
-
-        # Excel download
         df_report = pd.DataFrame([{
-            "Ticker":   r["ticker"].replace(".NS", ""),
-            "Company":  r["name"],
-            "Sector":   r["sector"],
+            "Ticker":     r["ticker"].replace(".NS",""),
+            "Company":    r["name"],
+            "Sector":     r["sector"],
             "Mkt Cap Cr": r["mcap_cr"],
-            "Score":    r["score"],
-            "Flags":    " | ".join([f"{s}: {t}" for s, t, _ in r["flags"]]) or "None"
+            "Score":      r["score"],
+            "Flags":      " | ".join([f"{f[0]}: {f[1]}" for f in r["flags"]]) or "None"
         } for r in results])
-        buffer = io.BytesIO()
-        df_report.to_excel(buffer, index=False)
-        st.download_button("📥 Download Excel Report", buffer.getvalue(), file_name="red_flags.xlsx")
+        buf = io.BytesIO()
+        df_report.to_excel(buf, index=False)
+        st.download_button("📥 Download Excel Report", buf.getvalue(), file_name="red_flags.xlsx")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -982,49 +900,61 @@ with tab_sector:
     st.markdown('<div class="section-heading">Sector-wise Health Scan</div>', unsafe_allow_html=True)
 
     SECTOR_GROUPS = {
-        "🏦 Banks":          ["HDFCBANK","ICICIBANK","AXISBANK","YESBANK","KOTAKBANK","SBIN","INDUSINDBK","FEDERALBNK","BANDHANBNK","IDFCFIRSTB"],
-        "💻 IT":             ["TCS","INFY","WIPRO","HCLTECH","TECHM","LTIM","MPHASIS","PERSISTENT","COFORGE","OFSS"],
-        "⚡ Power & Energy": ["NTPC","POWERGRID","ADANIPOWER","TATAPOWER","CESC","TORNTPOWER","NHPC","SJVN","RPOWER","JSWENERGY"],
-        "🏗️ Infrastructure": ["LT","ADANIPORTS","GMRINFRA","IRB","ASHOKA","KNR","NBCC","RVNL","IRCON","PNC"],
-        "🚗 Auto":           ["MARUTI","TATAMOTORS","M&M","BAJAJ-AUTO","EICHERMOT","HEROMOTOCO","ASHOKLEY","TVSMOTOR","MOTHERSON","BOSCHLTD"],
-        "💊 Pharma":         ["SUNPHARMA","DRREDDY","CIPLA","DIVISLAB","AUROPHARMA","LUPIN","TORNTPHARM","ALKEM","IPCALAB","GLENMARK"],
-        "💰 NBFCs":          ["BAJFINANCE","BAJAJFINSV","CHOLAFIN","MUTHOOTFIN","MANAPPURAM","LTFH","SHRIRAMFIN","ABCAPITAL","IIFL","POONAWALLA"],
-        "🛒 FMCG":           ["HINDUNILVR","ITC","NESTLEIND","BRITANNIA","DABUR","MARICO","COLPAL","GODREJCP","EMAMILTD","TATACONSUM"],
-        "🏠 Real Estate":    ["DLF","GODREJPROP","OBEROIRLTY","PRESTIGE","PHOENIXLTD","BRIGADE","SOBHA","MAHLIFE","LODHA","SUNTECK"],
-        "🔩 Metals":         ["TATASTEEL","JSWSTEEL","HINDALCO","SAIL","VEDL","NMDC","JINDALSTEL","APLAPOLLO","RATNAMANI","HINDCOPPER"],
+        "🏦 Banks":          ["HDFCBANK","ICICIBANK","AXISBANK","YESBANK","KOTAKBANK",
+                              "SBIN","INDUSINDBK","FEDERALBNK","BANDHANBNK","IDFCFIRSTB"],
+        "💻 IT":             ["TCS","INFY","WIPRO","HCLTECH","TECHM",
+                              "LTIM","MPHASIS","PERSISTENT","COFORGE","OFSS"],
+        "⚡ Power & Energy": ["NTPC","POWERGRID","ADANIPOWER","TATAPOWER","CESC",
+                              "TORNTPOWER","NHPC","SJVN","JSWENERGY","RPOWER"],
+        "🏗️ Infrastructure": ["LT","ADANIPORTS","GMRINFRA","IRB","ASHOKA",
+                              "KNR","NBCC","RVNL","IRCON","PNC"],
+        "🚗 Auto":           ["MARUTI","TATAMOTORS","M&M","BAJAJ-AUTO","EICHERMOT",
+                              "HEROMOTOCO","ASHOKLEY","TVSMOTOR","MOTHERSON","BOSCHLTD"],
+        "💊 Pharma":         ["SUNPHARMA","DRREDDY","CIPLA","DIVISLAB","AUROPHARMA",
+                              "LUPIN","TORNTPHARM","ALKEM","IPCALAB","GLENMARK"],
+        "💰 NBFCs":          ["BAJFINANCE","BAJAJFINSV","CHOLAFIN","MUTHOOTFIN","MANAPPURAM",
+                              "LTFH","SHRIRAMFIN","ABCAPITAL","IIFL","POONAWALLA"],
+        "🛒 FMCG":           ["HINDUNILVR","ITC","NESTLEIND","BRITANNIA","DABUR",
+                              "MARICO","COLPAL","GODREJCP","EMAMILTD","TATACONSUM"],
+        "🏠 Real Estate":    ["DLF","GODREJPROP","OBEROIRLTY","PRESTIGE","PHOENIXLTD",
+                              "BRIGADE","SOBHA","MAHLIFE","LODHA","SUNTECK"],
+        "🔩 Metals":         ["TATASTEEL","JSWSTEEL","HINDALCO","SAIL","VEDL",
+                              "NMDC","JINDALSTEL","APLAPOLLO","RATNAMANI","HINDCOPPER"],
     }
 
     chosen = st.selectbox("Select sector", list(SECTOR_GROUPS.keys()))
-
     if st.button("Scan Sector →", type="primary"):
         sector_tickers = [f"{t}.NS" for t in SECTOR_GROUPS[chosen]]
         results = []
         prog = st.progress(0)
         for i, sym in enumerate(sector_tickers):
-            prog.progress((i + 1) / len(sector_tickers), f"Scanning {sym}…")
+            prog.progress((i+1)/len(sector_tickers), f"Scanning {sym}…")
             r = analyse_ticker(sym)
-            if r:
-                results.append(r)
+            if r: results.append(r)
             time.sleep(0.2)
         prog.empty()
 
         if not results:
-            st.warning("No data returned. Try again later.")
+            st.warning("No data returned.")
             st.stop()
 
         results.sort(key=lambda x: x["score"], reverse=True)
         st.divider()
 
         for r in results:
-            icon = "🔴" if r["score"] >= 6 else "🟡" if r["score"] >= 3 else "🟢"
+            icon = "🔴" if r["score"]>=6 else "🟡" if r["score"]>=3 else "🟢"
             with st.expander(f"{icon}  {r['name']}   |   Score: {r['score']} / 10"):
                 c1, c2, c3 = st.columns(3)
                 c1.metric("Market Cap", f"₹{r['mcap_cr']:,.0f} Cr" if r["mcap_cr"] else "—")
                 c2.metric("D/E", f"{r['de_ratio']:.2f}x" if r["de_ratio"] else "—")
                 c3.metric("Promoter", f"{r['promoter_holding_pct']:.1f}%")
-
-                st.markdown('<div class="section-heading">Red Flags</div>', unsafe_allow_html=True)
-                render_flags_native(r["flags"])
+                st.markdown('<div class="section-heading">Red Flags with Financial Evidence</div>',
+                            unsafe_allow_html=True)
+                if not r["flags"]:
+                    st.success("✅ No major red flags detected.")
+                else:
+                    for flag in r["flags"]:
+                        render_flag_with_evidence(flag, r)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1032,30 +962,35 @@ with tab_sector:
 # ═══════════════════════════════════════════════════════════════════
 with tab_about:
     st.markdown("""
-    <div style="max-width: 640px; color: #94a3b8; line-height: 1.8; font-size: 0.88rem;">
-
-    <div class="section-heading">Methodology</div>
-
-    <p>This tool runs <strong style="color:#e2e8f0;">10 forensic checks</strong> on publicly available annual financials sourced from Yahoo Finance:</p>
-
-    <ul style="padding-left: 1.2rem;">
-        <li>CFO vs Net Profit ratio</li>
-        <li>Receivables growth vs Revenue growth</li>
-        <li>Debt growth vs CFO decline</li>
-        <li>Inventory build-up vs Revenue</li>
-        <li>Interest coverage ratio</li>
-        <li>Negative CFO alongside reported profits</li>
-        <li>Revenue decline (3Y CAGR)</li>
-        <li>Sustained net losses</li>
-        <li>Debt / Equity ratio</li>
-        <li>Promoter / insider holding %</li>
+    <div style="max-width:660px;color:#94a3b8;line-height:1.8;font-size:0.88rem;">
+    <div class="section-heading">How evidence panels work</div>
+    <p>Every red flag is backed by specific rows in the company's financial statements.
+    When a flag is triggered, the app automatically shows all three statements —
+    <strong style="color:#e2e8f0">Balance Sheet · P&amp;L · Cash Flow</strong> — and highlights
+    the exact rows involved:</p>
+    <ul style="padding-left:1.2rem;margin-top:0.4rem;">
+      <li><strong style="color:#ef4444">Red highlight</strong> = value increasing when it shouldn't
+          (e.g. debt rising, receivables growing faster than sales)</li>
+      <li><strong style="color:#f59e0b">Amber highlight</strong> = value decreasing when it shouldn't
+          (e.g. CFO falling while profits are reported)</li>
+      <li><strong style="color:#60a5fa">Blue highlight</strong> = reference metric for context</li>
     </ul>
-
-    <div class="section-heading" style="margin-top: 1.4rem;">Scoring</div>
-    <p>HIGH flag = 2 pts &nbsp;·&nbsp; MEDIUM flag = 1 pt &nbsp;·&nbsp; LOW flag = 0 pts &nbsp;·&nbsp; Max score capped at 10.</p>
-
-    <div class="section-heading" style="margin-top: 1.4rem;">Disclaimer</div>
-    <p>This is <strong style="color:#f87171;">not investment advice.</strong> Data may lag by one quarter or more. Always do your own research and consult a SEBI-registered advisor before making investment decisions.</p>
-
-    </div>
-    """, unsafe_allow_html=True)
+    <p>% change arrows between years show the direction and magnitude of the move.</p>
+    <div class="section-heading">10 Forensic Checks</div>
+    <ul style="padding-left:1.2rem;">
+      <li>CFO vs Net Profit ratio</li>
+      <li>Receivables growth vs Revenue growth</li>
+      <li>Debt growth vs CFO decline</li>
+      <li>Inventory build-up vs Revenue</li>
+      <li>Interest coverage ratio</li>
+      <li>Negative CFO alongside reported profits</li>
+      <li>Revenue decline (3Y CAGR)</li>
+      <li>Sustained net losses</li>
+      <li>Debt / Equity ratio</li>
+      <li>Promoter / insider holding %</li>
+    </ul>
+    <div class="section-heading">Scoring</div>
+    <p>HIGH = 2 pts · MEDIUM = 1 pt · LOW = 0 pts · Max capped at 10.</p>
+    <div class="section-heading">Disclaimer</div>
+    <p>Not investment advice. Data from Yahoo Finance — may lag. Always consult a SEBI-registered advisor.</p>
+    </div>""", unsafe_allow_html=True)
