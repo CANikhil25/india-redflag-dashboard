@@ -1,28 +1,26 @@
 # ============================================================
 #  INDIA RED FLAG DASHBOARD  —  app.py
-#  Enhanced UI version – modern, clean, professional
+#  Fixed UI: high contrast, readable text, functional layout
 #
 #  SECTION 1 — DATA LAYER       edit for new data sources
 #  SECTION 2 — ANALYSIS LAYER   edit for new checks / scoring
-#  SECTION 3 — UI LAYER         modern dashboard, charts, cards
+#  SECTION 3 — UI LAYER         clean, accessible, no contrast issues
 # ============================================================
 
 import streamlit as st
 import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.express as px
 import io
 import time
 import requests
 from datetime import datetime
 
 # ============================================================
-#  SECTION 1 — DATA LAYER
+#  SECTION 1 — DATA LAYER (unchanged, robust)
 # ============================================================
 
-# Full NSE-listed company list — loaded once from NSE's public endpoint
-@st.cache_data(ttl=86400, show_spinner=False)   # refresh once a day
+@st.cache_data(ttl=86400, show_spinner=False)
 def load_nse_company_list():
     """
     Fetches the full list of NSE-listed companies directly from NSE's website.
@@ -36,7 +34,6 @@ def load_nse_company_list():
         resp.raise_for_status()
         from io import StringIO
         df = pd.read_csv(StringIO(resp.text))
-        # NSE CSV columns: SYMBOL, NAME OF COMPANY, ...
         symbol_col = "SYMBOL"
         name_col   = " NAME OF COMPANY" if " NAME OF COMPANY" in df.columns else "NAME OF COMPANY"
         company_dict = {}
@@ -47,7 +44,6 @@ def load_nse_company_list():
                 company_dict[f"{name}  ({sym})"] = f"{sym}.NS"
         return company_dict
     except Exception:
-        # Fallback hardcoded list if NSE endpoint fails
         return {
             "Reliance Industries (RELIANCE)": "RELIANCE.NS",
             "TCS (TCS)": "TCS.NS",
@@ -73,11 +69,6 @@ def load_nse_company_list():
 
 
 def resolve_ticker(raw: str) -> str:
-    """
-    Tries to resolve a user-typed ticker to a valid Yahoo Finance symbol.
-    Tries NSE (.NS) first, then BSE (.BO).
-    Returns the working symbol or None.
-    """
     raw = raw.strip().upper().replace(".NS", "").replace(".BO", "")
     for suffix in [".NS", ".BO"]:
         symbol = raw + suffix
@@ -112,11 +103,6 @@ def _series_cr(series):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_company_data(ticker: str):
-    """
-    Fetches and returns clean financial data for one company.
-    ticker: Yahoo Finance format e.g. RELIANCE.NS
-    Returns dict or None if fetch fails.
-    """
     try:
         t    = yf.Ticker(ticker)
         info = t.info or {}
@@ -167,10 +153,7 @@ def get_company_data(ticker: str):
 
 
 # ============================================================
-#  SECTION 2 — ANALYSIS LAYER
-#  Add new checks here. Register them in run_all_checks().
-#  FLAG FORMAT: (severity, short_title, explanation)
-#  SEVERITY: "HIGH"=2pts | "MEDIUM"=1pt | "LOW"=0pts
+#  SECTION 2 — ANALYSIS LAYER (unchanged)
 # ============================================================
 
 def _cagr(series, years=3):
@@ -350,7 +333,7 @@ def run_all_checks(data):
 
 
 # ============================================================
-#  SECTION 3 — UI LAYER (ENHANCED MODERN DASHBOARD)
+#  SECTION 3 — UI LAYER (FIXED: high contrast, readable)
 # ============================================================
 
 st.set_page_config(
@@ -358,117 +341,104 @@ st.set_page_config(
     page_icon="🚨",
     layout="wide",
     initial_sidebar_state="collapsed",
-    menu_items={
-        "About": "Forensic analysis tool for NSE-listed companies. Not investment advice."
-    }
+    menu_items={"About": "Forensic analysis tool for NSE-listed companies. Not investment advice."}
 )
 
-# --- Custom CSS for modern look ---
+# --- Simple, robust CSS for readability (no transparency, dark text on light) ---
 st.markdown("""
 <style>
-    /* Main background and font */
+    /* Ensure body background is light but text is dark */
     .stApp {
-        background: linear-gradient(135deg, #f5f7fc 0%, #eef2f7 100%);
+        background-color: #f8f9fa;
     }
-    /* Card style */
+    /* Card style with solid background and shadow */
     .card {
-        background: white;
-        border-radius: 20px;
-        padding: 1.2rem;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.03), 0 2px 6px rgba(0,0,0,0.05);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        margin-bottom: 1rem;
-        border: 1px solid rgba(0,0,0,0.05);
-    }
-    .card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 16px 28px rgba(0,0,0,0.08);
-    }
-    /* Flag styles - refined */
-    .flag-HIGH {
-        background: #fff2f0;
-        border-left: 5px solid #d32f2f;
-        padding: 12px 18px;
+        background-color: #ffffff;
         border-radius: 12px;
+        padding: 1.2rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        margin-bottom: 1rem;
+        border: 1px solid #e0e0e0;
+    }
+    /* Flag containers – solid background, dark text, colored borders */
+    .flag-HIGH {
+        background-color: #fee9e6;
+        border-left: 6px solid #c0392b;
+        padding: 12px 16px;
+        border-radius: 8px;
         margin: 12px 0;
-        font-size: 0.95rem;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+        color: #2c3e50;
+        font-size: 0.9rem;
     }
     .flag-MEDIUM {
-        background: #fff9e6;
-        border-left: 5px solid #f57c00;
-        padding: 12px 18px;
-        border-radius: 12px;
+        background-color: #fff3e0;
+        border-left: 6px solid #e67e22;
+        padding: 12px 16px;
+        border-radius: 8px;
         margin: 12px 0;
+        color: #2c3e50;
     }
     .flag-LOW {
-        background: #eef3fc;
-        border-left: 5px solid #1976d2;
-        padding: 12px 18px;
-        border-radius: 12px;
+        background-color: #e8f0fe;
+        border-left: 6px solid #2980b9;
+        padding: 12px 16px;
+        border-radius: 8px;
         margin: 12px 0;
+        color: #2c3e50;
     }
-    /* Score card styling */
+    /* Score card */
     .score-card {
-        background: white;
-        border-radius: 24px;
+        background: #ffffff;
+        border-radius: 16px;
         padding: 1rem;
         text-align: center;
-        transition: all 0.2s;
-        border: 1px solid rgba(0,0,0,0.05);
-        backdrop-filter: blur(2px);
+        border: 1px solid #dee2e6;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     }
-    /* Custom buttons */
+    /* Buttons */
     .stButton > button {
-        border-radius: 40px;
-        padding: 0.5rem 1.8rem;
-        font-weight: 600;
-        transition: all 0.2s;
-        background: linear-gradient(95deg, #1e3c72, #2a5298);
+        background-color: #1f618d;
         color: white;
+        border-radius: 30px;
+        padding: 0.5rem 1.5rem;
+        font-weight: 600;
         border: none;
+        transition: 0.2s;
     }
     .stButton > button:hover {
-        transform: scale(1.02);
-        background: linear-gradient(95deg, #2a5298, #1e3c72);
-        box-shadow: 0 8px 18px rgba(0,0,0,0.1);
-    }
-    /* Metric cards */
-    .metric-badge {
-        background: rgba(255,255,255,0.8);
-        border-radius: 16px;
-        padding: 0.4rem 1rem;
-        text-align: center;
-        backdrop-filter: blur(4px);
-    }
-    /* Tabs styling */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 12px;
-        background-color: transparent;
-    }
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 40px;
-        padding: 6px 20px;
-        background-color: rgba(255,255,255,0.5);
-        font-weight: 500;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #1e3c72;
+        background-color: #154360;
         color: white;
     }
-    /* Headers */
-    h1, h2, h3 {
-        font-weight: 600;
-        letter-spacing: -0.3px;
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] button {
+        background-color: #e9ecef;
+        border-radius: 30px;
+        margin-right: 8px;
+        font-weight: 500;
+        color: #1a1a1a;
     }
-    hr {
-        margin: 1rem 0;
-        background: linear-gradient(90deg, transparent, #ccc, transparent);
+    .stTabs [data-baseweb="tab-list"] button[aria-selected="true"] {
+        background-color: #1f618d;
+        color: white;
+    }
+    /* Metric text */
+    [data-testid="stMetricValue"] {
+        color: #1a1a1a;
+        font-weight: 600;
+    }
+    /* Headers */
+    h1, h2, h3, h4 {
+        color: #1e3a5f;
+    }
+    /* Expander headers */
+    .streamlit-expanderHeader {
+        font-weight: 600;
+        background-color: #f1f3f5;
+        border-radius: 8px;
     }
     /* Dataframe */
     .dataframe {
-        border-radius: 16px;
-        overflow: hidden;
+        font-size: 0.85rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -476,73 +446,59 @@ st.markdown("""
 def make_bar_chart(series, title, color):
     if series is None or series.empty:
         return None
-    # Clean year labels
     years = [str(d)[:4] for d in series.index]
     values = [round(v, 0) for v in series.values]
     fig = go.Figure(go.Bar(
-        x=years,
-        y=values,
+        x=years, y=values,
         marker_color=color,
-        marker_line_width=0,
-        opacity=0.85,
-        text=values,
-        textposition='outside',
-        textfont=dict(size=10)
+        text=values, textposition='outside',
+        textfont=dict(color='black', size=10)
     ))
     fig.update_layout(
-        title=dict(text=title, font=dict(size=14, weight='bold'), x=0.5),
+        title=dict(text=title, font=dict(size=14, color='black'), x=0.5),
         height=260,
         margin=dict(t=40, b=30, l=40, r=20),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor='white',
+        plot_bgcolor='white',
         yaxis_title="₹ Crore",
-        font=dict(size=11),
-        xaxis=dict(tickangle=0, tickfont=dict(size=10)),
-        yaxis=dict(gridcolor="rgba(0,0,0,0.05)", zerolinecolor="rgba(0,0,0,0.1)")
+        font=dict(color='black'),
+        xaxis=dict(tickangle=0, tickfont=dict(color='black')),
+        yaxis=dict(gridcolor='#e0e0e0', zerolinecolor='#cccccc')
     )
-    fig.update_traces(texttemplate='%{text:.0f}', textposition='outside')
     return fig
 
 def risk_gauge(score):
-    """Plotly gauge chart for risk score."""
-    color = "#d32f2f" if score >= 6 else "#f57c00" if score >= 3 else "#2e7d32"
+    color = "#c0392b" if score >= 6 else "#e67e22" if score >= 3 else "#27ae60"
     fig = go.Figure(go.Indicator(
-        mode = "gauge+number+delta",
-        value = score,
-        title = {'text': "Risk Score", 'font': {'size': 16}},
-        domain = {'x': [0, 1], 'y': [0, 1]},
-        gauge = {
-            'axis': {'range': [0, 10], 'tickwidth': 1, 'tickcolor': "darkgray"},
+        mode="gauge+number",
+        value=score,
+        title={'text': "Risk Score", 'font': {'size': 14, 'color': 'black'}},
+        domain={'x': [0, 1], 'y': [0, 1]},
+        gauge={
+            'axis': {'range': [0, 10], 'tickcolor': 'black'},
             'bar': {'color': color, 'thickness': 0.3},
-            'bgcolor': "white",
+            'bgcolor': 'white',
             'borderwidth': 0,
             'steps': [
                 {'range': [0, 3], 'color': '#e8f5e9'},
                 {'range': [3, 6], 'color': '#fff3e0'},
                 {'range': [6, 10], 'color': '#ffebee'}
-            ],
-            'threshold': {
-                'line': {'color': "black", 'width': 2},
-                'thickness': 0.75,
-                'value': score
-            }
+            ]
         }
     ))
-    fig.update_layout(height=220, margin=dict(t=30, b=10, l=30, r=30), paper_bgcolor="rgba(0,0,0,0)")
+    fig.update_layout(height=200, margin=dict(t=30, b=10), paper_bgcolor='white')
     return fig
 
 def score_card_modern(symbol, name, score, flag_count):
-    """Enhanced score card with risk level and gauge."""
     risk_label = "HIGH RISK" if score >= 6 else "WATCH" if score >= 3 else "CLEAN"
-    color = "#d32f2f" if score >= 6 else "#f57c00" if score >= 3 else "#2e7d32"
-    bg_gradient = "linear-gradient(135deg, #ffffff, #fafafa)"
+    color = "#c0392b" if score >= 6 else "#e67e22" if score >= 3 else "#27ae60"
     return f"""
-    <div class="score-card" style="background: {bg_gradient}; border-top: 4px solid {color};">
-        <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: #666;">{symbol.replace('.NS','').replace('.BO','')}</div>
-        <div style="font-size: 0.8rem; font-weight: 500; margin: 4px 0; color: #222;">{name[:28]}</div>
-        <div style="font-size: 2.4rem; font-weight: 700; color: {color};">{score}<span style="font-size: 1rem; color: #aaa;">/10</span></div>
-        <div style="font-size: 0.7rem; font-weight: 600; color: {color}; background: rgba(0,0,0,0.03); display: inline-block; padding: 2px 10px; border-radius: 30px;">{risk_label}</div>
-        <div style="font-size: 0.7rem; color: #777; margin-top: 6px;">⚑ {flag_count} flag(s)</div>
+    <div class="score-card">
+        <div style="font-size:0.7rem; color:#6c757d;">{symbol.replace('.NS','').replace('.BO','')}</div>
+        <div style="font-size:0.85rem; font-weight:500; margin:6px 0;">{name[:28]}</div>
+        <div style="font-size:2.2rem; font-weight:700; color:{color};">{score}<span style="font-size:0.9rem; color:#6c757d;">/10</span></div>
+        <div style="font-size:0.7rem; font-weight:600; color:{color}; background:#f8f9fa; display:inline-block; padding:2px 12px; border-radius:20px;">{risk_label}</div>
+        <div style="font-size:0.7rem; color:#6c757d; margin-top:6px;">🚩 {flag_count} flag(s)</div>
     </div>
     """
 
@@ -553,244 +509,154 @@ def analyse_ticker(ticker):
     flags, score = run_all_checks(data)
     return {**data, "flags": flags, "score": score}
 
-# Load NSE company list
-with st.spinner("📡 Fetching latest NSE company list..."):
+# Load NSE list
+with st.spinner("Loading NSE company list..."):
     ALL_COMPANIES = load_nse_company_list()
 
-# ─── HEADER SECTION ────────────────────────────────────────
-col_logo, col_title = st.columns([1, 5])
-with col_logo:
-    st.markdown("## 🚨")
-with col_title:
-    st.markdown("# India Red Flag Dashboard")
-    st.caption(f"**{len(ALL_COMPANIES):,} NSE-listed companies** · Forensic financial health screening · Data via Yahoo Finance · Last updated: {datetime.now().strftime('%d %b %Y, %I:%M %p')}")
+# Header
+st.title("🚨 India Red Flag Dashboard")
+st.caption(f"**{len(ALL_COMPANIES):,} NSE-listed companies** · Forensic financial screening · Data via Yahoo Finance · {datetime.now().strftime('%d %b %Y, %I:%M %p')}")
 
-# Tabs
-tab_search, tab_sector, tab_about = st.tabs(["🔍  Company Search & Analysis", "📊  Sector Scanner", "ℹ️  About & Methodology"])
+tab_search, tab_sector, tab_about = st.tabs(["🔍 Search & Analyse", "📊 Sector Scanner", "ℹ️ About"])
 
-# ======================= TAB 1: SEARCH =======================
+# ======================= TAB 1 =======================
 with tab_search:
-    st.markdown("### Search across all NSE companies")
-    st.caption("Select one or more companies from the dropdown, or type NSE tickers directly.")
-    
-    col1, col2 = st.columns([2.5, 1.5])
+    st.markdown("### Search by company name or NSE ticker")
+    col1, col2 = st.columns([3, 1])
     with col1:
         selected_names = st.multiselect(
-            "🔎 Company name (searchable)",
+            "Company name (searchable)",
             options=sorted(ALL_COMPANIES.keys()),
-            placeholder="e.g. Infosys, HDFC Bank, Reliance...",
+            placeholder="Type to search...",
             label_visibility="collapsed"
         )
-        manual = st.text_input(
-            "✏️ Or type NSE tickers (comma separated)",
-            placeholder="RCOM, JPPOWER, DHFL, GTLINFRA",
-            label_visibility="collapsed"
-        )
+        manual = st.text_input("Or type NSE tickers (comma separated)", placeholder="e.g. RELIANCE, TCS, ZOMATO")
     with col2:
-        st.markdown("<br>", unsafe_allow_html=True)  # spacing
-        st.info("💡 **Tip**: Select multiple companies to compare them side by side.")
-    
-    # Resolve tickers
+        st.caption("💡 Select multiple to compare")
+        st.caption("📌 Ticker: RELIANCE (no .NS)")
+
     tickers = []
     if selected_names:
         tickers += [ALL_COMPANIES[n] for n in selected_names]
     if manual.strip():
-        raw_tickers = [t.strip().upper() for t in manual.split(",") if t.strip()]
-        with st.spinner("Validating tickers..."):
-            for raw in raw_tickers:
-                resolved = resolve_ticker(raw)
-                if resolved:
-                    tickers.append(resolved)
-                else:
-                    st.warning(f"⚠️ Could not find **{raw}** on NSE/BSE")
+        for raw in [t.strip().upper() for t in manual.split(",") if t.strip()]:
+            resolved = resolve_ticker(raw)
+            if resolved:
+                tickers.append(resolved)
+            else:
+                st.warning(f"Invalid ticker: {raw}")
     tickers = list(dict.fromkeys(tickers))
-    
-    if tickers and st.button(f"🔍 Analyse {len(tickers)} company/companies", type="primary", use_container_width=False):
-        results, progress_bar = [], st.progress(0, text="Fetching financials...")
-        for i, ticker in enumerate(tickers):
-            progress_bar.progress(i / len(tickers), f"Analysing {ticker}...")
-            r = analyse_ticker(ticker)
+
+    if tickers and st.button(f"Analyse {len(tickers)} company/companies", type="primary"):
+        results = []
+        prog = st.progress(0)
+        for i, t in enumerate(tickers):
+            prog.progress((i+1)/len(tickers), f"Fetching {t}...")
+            r = analyse_ticker(t)
             if r:
                 results.append(r)
             else:
-                st.warning(f"❌ Data unavailable for {ticker} — may not be covered by Yahoo Finance")
-            time.sleep(0.25)
-        progress_bar.empty()
-        
+                st.error(f"No data for {t}")
+            time.sleep(0.3)
+        prog.empty()
+
         if not results:
-            st.error("No data fetched. Try different tickers or check later.")
+            st.error("No results. Try different tickers.")
             st.stop()
-        
-        # Sort by risk score (highest first)
+
         results.sort(key=lambda x: x["score"], reverse=True)
-        
-        # Summary score cards row
+
         st.divider()
-        st.subheader("📋 Risk Summary")
-        cols = st.columns(min(len(results), 5))
+        st.subheader("Risk Summary")
+        cols = st.columns(min(5, len(results)))
         for idx, r in enumerate(results):
             cols[idx % 5].markdown(score_card_modern(r["ticker"], r["name"], r["score"], len(r["flags"])), unsafe_allow_html=True)
-        
+
         st.divider()
-        
-        # Detailed expanders for each company
         for r in results:
-            with st.expander(f"{'🔴' if r['score']>=6 else '🟡' if r['score']>=3 else '✅'}  {r['name']}  ({r['ticker'].replace('.NS','')})  |  Score: {r['score']}/10  |  {r.get('sector','—')}  |  ₹{r['mcap_cr']:,.0f} Cr" if r.get('mcap_cr') else f"{r['name']}  ({r['ticker'].replace('.NS','')})", expanded=(r['score']>=6)):
-                
-                # Top row: key metrics + gauge
-                col_a, col_b, col_c = st.columns([1, 1.2, 1.8])
-                with col_a:
+            with st.expander(f"{'🔴' if r['score']>=6 else '🟡' if r['score']>=3 else '✅'} {r['name']} ({r['ticker'].replace('.NS','')}) | Score: {r['score']}/10", expanded=(r['score']>=6)):
+                c1, c2, c3 = st.columns(3)
+                with c1:
                     st.metric("Market Cap", f"₹{r['mcap_cr']:,.0f} Cr" if r['mcap_cr'] else "—")
-                    st.metric("Debt/Equity", f"{r['de_ratio']:.2f}x" if r['de_ratio'] else "—")
-                with col_b:
+                    st.metric("Debt/Equity", f"{r['de_ratio']:.2f}" if r['de_ratio'] else "—")
+                with c2:
                     st.metric("Promoter Holding", f"{r['promoter_holding_pct']:.1f}%" if r['promoter_holding_pct'] else "—")
-                    st.metric("Sector", r['sector'][:20] if r['sector'] else "—")
-                with col_c:
+                    st.metric("Sector", r['sector'])
+                with c3:
                     st.plotly_chart(risk_gauge(r['score']), use_container_width=True, config={"displayModeBar": False})
-                
-                # Financial charts: Revenue, Profit, CFO
-                st.markdown("#### 📊 Financial Trends (₹ Crore)")
-                chart_cols = st.columns(3)
-                for idx, (key, df_key, title, color) in enumerate([
-                    ("revenue", "pnl", "Revenue", "#2c6e9e"),
-                    ("net_profit", "pnl", "Net Profit", "#1b8c5e"),
-                    ("cfo", "cf", "Operating Cash Flow", "#e67e22")
-                ]):
-                    fig = make_bar_chart(r[df_key].get(key), title, color)
+
+                st.markdown("#### Financial Trends (₹ Crore)")
+                col_ch1, col_ch2, col_ch3 = st.columns(3)
+                charts = [
+                    (r["pnl"].get("revenue"), "Revenue", "#1f618d"),
+                    (r["pnl"].get("net_profit"), "Net Profit", "#27ae60"),
+                    (r["cf"].get("cfo"), "Operating Cash Flow", "#e67e22")
+                ]
+                for i, (series, title, color) in enumerate(charts):
+                    fig = make_bar_chart(series, title, color)
                     if fig:
-                        chart_cols[idx].plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+                        [col_ch1, col_ch2, col_ch3][i].plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
                     else:
-                        chart_cols[idx].info("No data available")
-                
-                # Red flags analysis
-                st.markdown("#### 🚩 Red Flag Analysis")
+                        [col_ch1, col_ch2, col_ch3][i].info("No data")
+
+                st.markdown("#### 🚩 Red Flags")
                 if not r["flags"]:
-                    st.success("✅ No red flags triggered based on forensic checks. Always conduct your own due diligence.")
+                    st.success("✅ No red flags triggered.")
                 else:
                     for sev, title, detail in r["flags"]:
-                        icon = "🔴" if sev=="HIGH" else "🟡" if sev=="MEDIUM" else "🔵"
-                        st.markdown(
-                            f'<div class="flag-{sev}"><strong>{icon} [{sev}] {title}</strong><br><span style="color:#444; font-size:0.85rem;">{detail}</span></div>',
-                            unsafe_allow_html=True
-                        )
-        
-        # Download Excel report
-        st.divider()
-        rows = [{
-            "Ticker": r["ticker"].replace(".NS","").replace(".BO",""),
-            "Company": r["name"],
-            "Sector": r.get("sector","—"),
-            "Industry": r.get("industry","—"),
-            "Mkt Cap (₹ Cr)": r.get("mcap_cr"),
-            "Score (0-10)": r["score"],
-            "Flags": " | ".join(f"[{s}] {t}" for s,t,_ in r["flags"]) or "None"
-        } for r in results]
-        df_download = pd.DataFrame(rows)
-        excel_buffer = io.BytesIO()
-        df_download.to_excel(excel_buffer, index=False)
-        st.download_button(
-            label="📥 Download Excel Report",
-            data=excel_buffer.getvalue(),
-            file_name=f"red_flag_report_{datetime.now().strftime('%Y%m%d')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=False
-        )
+                        st.markdown(f'<div class="flag-{sev}"><strong>[{sev}] {title}</strong><br>{detail}</div>', unsafe_allow_html=True)
 
-# ======================= TAB 2: SECTOR SCAN =======================
+        # Excel download
+        df_report = pd.DataFrame([{
+            "Ticker": r["ticker"].replace(".NS",""),
+            "Company": r["name"],
+            "Sector": r["sector"],
+            "Mkt Cap Cr": r["mcap_cr"],
+            "Score": r["score"],
+            "Flags": " | ".join([f"{s}: {t}" for s,t,_ in r["flags"]]) or "None"
+        } for r in results])
+        buffer = io.BytesIO()
+        df_report.to_excel(buffer, index=False)
+        st.download_button("📥 Download Excel Report", buffer.getvalue(), file_name="red_flags.xlsx")
+
+# ======================= TAB 2 =======================
 with tab_sector:
-    st.markdown("### 📊 Sector-wide health scan")
-    st.caption("Pre-defined sector baskets covering major NSE segments. Click 'Scan' to run forensic checks on all companies in that sector.")
-    
-    # Sector groups (unchanged)
+    st.markdown("### Sector-wise health scan")
     SECTOR_GROUPS = {
-        "🏦 Banks":                ["HDFCBANK","ICICIBANK","AXISBANK","YESBANK","KOTAKBANK","SBIN","INDUSINDBK","FEDERALBNK","BANDHANBNK","IDFCFIRSTB"],
-        "🏦 NBFCs":                ["BAJFINANCE","BAJAJFINSV","CHOLAFIN","MUTHOOTFIN","MANAPPURAM","LICHSGFIN","PNBHOUSING","CANFINHOME"],
-        "💻 IT Services":          ["TCS","INFY","WIPRO","HCLTECH","TECHM","MPHASIS","LTIM","PERSISTENT","COFORGE","KPITTECH"],
-        "💊 Pharma":               ["SUNPHARMA","DRREDDY","CIPLA","DIVISLAB","AUROPHARMA","TORNTPHARM","ALKEM","IPCALAB","GLENMARK","NATCOPHARM"],
-        "⚡ Adani Group":          ["ADANIENT","ADANIPORTS","ADANIPOWER","ADANIGREEN","ADANITRANS","ADANIGAS","ADANIENSOL","AWL"],
-        "🏭 Auto":                 ["TATAMOTORS","MARUTI","HEROMOTOCO","BAJAJ-AUTO","EICHERMOT","MAHINDRA","TVSMOTORS","ASHOKLEY"],
-        "🏗️ Infrastructure":       ["LT","ULTRACEMCO","GRASIM","AMBUJACEM","ACC","SHREECEM","JKCEMENT","RAMCOCEM"],
-        "🛢️ Oil & Gas":            ["RELIANCE","ONGC","BPCL","IOC","HINDPETRO","GAIL","OIL","MGL"],
-        "🛒 FMCG":                 ["HINDUNILVR","ITC","NESTLEIND","BRITANNIA","DABUR","MARICO","GODREJCP","COLPAL","EMAMILTD"],
-        "🔌 Power":                ["NTPC","POWERGRID","TATAPOWER","CESC","TORNTPOWER","JSWENERGY","NHPC","SJVN"],
-        "🏠 Real Estate":          ["DLF","GODREJPROP","OBEROIRLTY","PHOENIXLTD","PRESTIGE","BRIGADE","SOBHA","MAHLIFE"],
-        "🚀 New-age / Startups":   ["ZOMATO","PAYTM","NYKAA","DELHIVERY","CARTRADE","EASEMYTRIP","POLICYBZR","MAPMYINDIA"],
-        "📡 Telecom":              ["BHARTIARTL","IDEA","TATACOMM","INDUSTOWER","HFCL"],
-        "🔩 Metals & Mining":      ["TATASTEEL","JSWSTEEL","HINDALCO","VEDL","SAIL","NMDC","NATIONALUM","HINDCOPPER"],
-        "⚠️ High-risk / Stressed": ["YESBANK","RCOM","SUZLON","JPPOWER","JPASSOCIAT","GTLINFRA","DEWAN","ALOKTEXT"],
+        "🏦 Banks": ["HDFCBANK","ICICIBANK","AXISBANK","YESBANK","KOTAKBANK","SBIN","INDUSINDBK","FEDERALBNK","BANDHANBNK","IDFCFIRSTB"],
+        "💻 IT Services": ["TCS","INFY","WIPRO","HCLTECH","TECHM","MPHASIS","LTIM","PERSISTENT","COFORGE"],
+        "💊 Pharma": ["SUNPHARMA","DRREDDY","CIPLA","DIVISLAB","AUROPHARMA","TORNTPHARM","ALKEM"],
+        "⚡ Adani Group": ["ADANIENT","ADANIPORTS","ADANIPOWER","ADANIGREEN","ADANITRANS","ADANIGAS"],
+        "🏭 Auto": ["TATAMOTORS","MARUTI","HEROMOTOCO","BAJAJ-AUTO","EICHERMOT","MAHINDRA"],
+        "🛢️ Oil & Gas": ["RELIANCE","ONGC","BPCL","IOC","HINDPETRO","GAIL"],
+        "⚠️ High-risk": ["YESBANK","RCOM","SUZLON","JPPOWER","GTLINFRA"],
     }
-    
-    chosen_sector = st.selectbox("Select sector to analyse", list(SECTOR_GROUPS.keys()))
-    sector_tickers = [f"{t}.NS" for t in SECTOR_GROUPS[chosen_sector]]
-    st.caption(f"📌 {len(sector_tickers)} companies in this sector")
-    
-    if st.button(f"🔍 Scan {chosen_sector}", type="primary"):
-        rows, prog = [], st.progress(0, text="Scanning sector...")
+    chosen = st.selectbox("Select sector", list(SECTOR_GROUPS.keys()))
+    if st.button("Scan Sector", type="primary"):
+        sector_tickers = [f"{t}.NS" for t in SECTOR_GROUPS[chosen]]
+        rows, prog = [], st.progress(0)
         for i, sym in enumerate(sector_tickers):
-            prog.progress(i / len(sector_tickers), f"Processing {sym}...")
+            prog.progress((i+1)/len(sector_tickers), f"Scanning {sym}...")
             r = analyse_ticker(sym)
             if r:
-                rows.append({
-                    "Ticker":   sym.replace(".NS",""),
-                    "Company":  r["name"],
-                    "Industry": r.get("industry","—"),
-                    "Mkt Cap (₹ Cr)": r.get("mcap_cr"),
-                    "Score":    r["score"],
-                    "# Flags":  len(r["flags"]),
-                    "Top Flag": r["flags"][0][1] if r["flags"] else "None",
-                })
+                rows.append({"Ticker": sym.replace(".NS",""), "Company": r["name"], "Score": r["score"], "#Flags": len(r["flags"])})
             time.sleep(0.2)
         prog.empty()
-        
         if rows:
             df = pd.DataFrame(rows).sort_values("Score", ascending=False)
-            # Color gradient on Score
-            styled_df = df.style.background_gradient(subset=["Score"], cmap="RdYlGn_r", vmin=0, vmax=10)
-            st.dataframe(styled_df, use_container_width=True, hide_index=True)
-            
-            # Download sector report
+            st.dataframe(df, use_container_width=True)
             buffer = io.BytesIO()
             df.to_excel(buffer, index=False)
-            st.download_button(
-                label="📥 Download sector report (Excel)",
-                data=buffer.getvalue(),
-                file_name=f"sector_{chosen_sector.replace(' ','_')}_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            st.download_button("Download Sector Report", buffer.getvalue(), file_name=f"sector_{chosen}.xlsx")
         else:
-            st.warning("No data retrieved for this sector.")
+            st.warning("No data")
 
-# ======================= TAB 3: ABOUT =======================
+# ======================= TAB 3 =======================
 with tab_about:
     st.markdown("""
-    ## 🧠 Methodology & Red Flag Checks
-    
-    This dashboard performs **forensic accounting analysis** on NSE-listed companies using annual financial data from Yahoo Finance.  
-    Each company is scored out of **10** based on 10 quantitative checks – the higher the score, the more red flags.
-    
-    ### Checks performed
-    
-    | # | Check | What it detects | Severity |
-    |---|-------|----------------|----------|
-    | 1 | CFO / Net Profit ratio | Earnings manipulation, poor cash conversion | HIGH/MEDIUM |
-    | 2 | Receivables vs Revenue growth | Channel stuffing, aggressive revenue | HIGH/MEDIUM |
-    | 3 | Debt up + CFO down | Pre-distress signal | HIGH |
-    | 4 | Inventory buildup | Demand slowdown, obsolete stock | MEDIUM |
-    | 5 | Interest coverage ratio | Debt servicing risk | HIGH/MEDIUM |
-    | 6 | Negative CFO despite profits | Persistent accounting manipulation | HIGH |
-    | 7 | Revenue decline | Structural deterioration | MEDIUM |
-    | 8 | Sustained losses | Profitability failure | HIGH/MEDIUM |
-    | 9 | Debt/Equity ratio | Over-leverage | HIGH/MEDIUM |
-    | 10 | Low promoter holding | Governance concern | LOW |
-    
-    **Scoring:** HIGH = 2 points, MEDIUM = 1 point, LOW = 0 points → max 10.
-    
-    ### Data source & limitations
-    - **Data:** Yahoo Finance (annual reports). May lag latest filings by several weeks.
-    - **Coverage:** All NSE-listed companies with financials available on Yahoo Finance.
-    - **Not investment advice:** These are quantitative forensic flags, not buy/sell recommendations.
-    
-    ### Version & Credits
-    Built with Streamlit, yfinance, Plotly.  
-    Updated daily with NSE company list.
+    ## Methodology
+    - **10 forensic checks** (CFO/Profit, Receivables growth, Debt vs CFO, Inventory, Interest coverage, Negative CFO with profit, Revenue decline, Sustained losses, Debt/Equity, Promoter holding)
+    - **Scoring:** HIGH=2, MEDIUM=1, LOW=0 → max 10
+    - **Data:** Yahoo Finance annual financials (lag may exist)
+    - **Disclaimer:** Not investment advice. For research only.
     """)
