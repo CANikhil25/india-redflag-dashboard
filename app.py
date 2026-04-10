@@ -1011,8 +1011,8 @@ with tab_sector:
                 st.markdown('<div class="section-heading">Red Flags with Financial Evidence</div>',
                             unsafe_allow_html=True)
                 # Split flags
-risk_flags = [f for f in r["flags"] if f[4] == "RISK"]
-manip_flags = [f for f in r["flags"] if f[4] == "MANIPULATION"]
+risk_flags = [f for f in r["flags"] if len(f) >= 5 and f[4] == "RISK"]
+manip_flags = [f for f in r["flags"] if len(f) >= 5 and f[4] == "MANIPULATION"]
 
 st.markdown('<div class="section-heading">🔴 Financial Risk</div>', unsafe_allow_html=True)
 
