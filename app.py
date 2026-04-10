@@ -126,6 +126,7 @@ def get_company_data(ticker: str):
             "current_liab":   _series_cr(_safe_row(raw_bs, ["Current Liabilities"])),
             "cash":           _series_cr(_safe_row(raw_bs, ["Cash And Cash Equivalents",
                                          "Cash Cash Equivalents And Short Term Investments"])),
+            "goodwill":       _series_cr(_safe_row(raw_bs, ["Goodwill"])),
         }
         cf = {
             "cfo":   _series_cr(_safe_row(raw_cf, ["Operating Cash Flow","Cash From Operations"])),
@@ -172,6 +173,9 @@ def _avg(series, n=3):
     s = series.dropna().iloc[-n:]
     return float(s.mean()) if not s.empty else None
 
+
+# ---------------- EXISTING CHECKS ---------------- #
+
 def check_cfo_vs_profit(data):
     flags = []
     cfo, pat = data["cf"].get("cfo"), data["pnl"].get("net_profit")
@@ -183,13 +187,12 @@ def check_cfo_vs_profit(data):
           {"panel":"CF","label":"Operating CF (CFO)","series":cfo,"highlight":"decrease"}]
     if r < 0.7:
         flags.append(("HIGH","Low CFO / Net Profit ratio",
-            f"3-year avg CFO is only {r:.0%} of reported profit. "
-            "Healthy companies generate ≥1x CFO vs profit. "
-            "Strong signal of accrual-based earnings inflation.", ev))
+            f"3-year avg CFO is only {r:.0%} of reported profit.", ev))
     elif r < 0.85:
         flags.append(("MEDIUM",f"Below-average CFO / Net Profit ({r:.0%})",
-            f"CFO is {r:.0%} of net profit (3yr avg). Below healthy 85%+ threshold.", ev))
+            f"CFO is {r:.0%} of net profit.", ev))
     return flags
+
 
 def check_receivables_vs_revenue(data):
     flags = []
@@ -202,12 +205,12 @@ def check_receivables_vs_revenue(data):
           {"panel":"BS","label":"Receivables","series":rec,"highlight":"increase"}]
     if gap > 0.15:
         flags.append(("HIGH","Receivables growing much faster than revenue",
-            f"Revenue 3Y CAGR: {rg:.0%} | Receivables 3Y CAGR: {recg:.0%} — gap of {gap:.0%}. "
-            "Classic channel stuffing or aggressive revenue recognition.", ev))
+            f"Gap of {gap:.0%}.", ev))
     elif gap > 0.10:
         flags.append(("MEDIUM","Receivables growing faster than revenue",
-            f"Revenue CAGR: {rg:.0%} | Receivables CAGR: {recg:.0%} — gap of {gap:.0%}.", ev))
+            f"Gap of {gap:.0%}.", ev))
     return flags
+
 
 def check_debt_vs_cfo(data):
     flags = []
@@ -218,10 +221,10 @@ def check_debt_vs_cfo(data):
     ev = [{"panel":"BS","label":"Total Debt","series":debt,"highlight":"increase"},
           {"panel":"CF","label":"Operating CF (CFO)","series":cfo,"highlight":"decrease"}]
     if float(d.iloc[-1]) > float(d.iloc[0])*1.35 and float(c.iloc[-1]) < float(c.iloc[0])*0.75:
-        flags.append(("HIGH","Debt up 35%+ while CFO dropped 25%+",
-            "Borrowing significantly more while generating less operating cash. "
-            "Classic pre-distress signal. Check if debt is funding operations rather than capex.", ev))
+        flags.append(("HIGH","Debt up while CFO falling",
+            "Borrowing rising while cash generation weak.", ev))
     return flags
+
 
 def check_inventory_buildup(data):
     flags = []
@@ -232,10 +235,10 @@ def check_inventory_buildup(data):
     ev = [{"panel":"PL","label":"Revenue","series":rev,"highlight":"neutral"},
           {"panel":"BS","label":"Inventory","series":inv,"highlight":"increase"}]
     if ig - rg > 0.15:
-        flags.append(("MEDIUM",f"Inventory growing faster than revenue (gap: {ig-rg:.0%})",
-            f"Inventory 3Y CAGR: {ig:.0%} vs Revenue 3Y CAGR: {rg:.0%}. "
-            "May signal demand slowdown or obsolete stock.", ev))
+        flags.append(("MEDIUM","Inventory growing faster than revenue",
+            f"Gap: {ig-rg:.0%}", ev))
     return flags
+
 
 def check_interest_coverage(data):
     flags = []
@@ -249,12 +252,11 @@ def check_interest_coverage(data):
     ev = [{"panel":"PL","label":"Operating Profit","series":ebit,"highlight":"neutral"},
           {"panel":"PL","label":"Interest Expense","series":intexp,"highlight":"increase"}]
     if icr < 1.5:
-        flags.append(("HIGH",f"Dangerously low interest coverage ({icr:.1f}x)",
-            f"Operating profit covers interest only {icr:.1f}x. Below 1.5x is danger zone.", ev))
+        flags.append(("HIGH","Low interest coverage", f"{icr:.1f}x", ev))
     elif icr < 2.5:
-        flags.append(("MEDIUM",f"Weak interest coverage ({icr:.1f}x)",
-            f"Coverage of {icr:.1f}x is below comfortable 3x+ threshold.", ev))
+        flags.append(("MEDIUM","Weak interest coverage", f"{icr:.1f}x", ev))
     return flags
+
 
 def check_negative_cfo_vs_profit(data):
     flags = []
@@ -265,10 +267,9 @@ def check_negative_cfo_vs_profit(data):
     ev = [{"panel":"PL","label":"Net Profit","series":pat,"highlight":"neutral"},
           {"panel":"CF","label":"Operating CF (CFO)","series":cfo,"highlight":"decrease"}]
     if neg_cfo >= 2 and pos_pat >= 3:
-        flags.append(("HIGH",f"Negative CFO in {neg_cfo} years despite profits",
-            f"Reported profits in {pos_pat} years but negative CFO in {neg_cfo} years. "
-            "Company is printing paper profits but not generating real cash.", ev))
+        flags.append(("HIGH","Negative CFO despite profits","Cash flow mismatch", ev))
     return flags
+
 
 def check_revenue_decline(data):
     flags = []
@@ -277,9 +278,9 @@ def check_revenue_decline(data):
     rg = _cagr(rev,3)
     ev = [{"panel":"PL","label":"Revenue","series":rev,"highlight":"decrease"}]
     if rg is not None and rg < -0.05:
-        flags.append(("MEDIUM",f"Revenue declining (3Y CAGR: {rg:.1%})",
-            f"Revenue falling at {abs(rg):.1%} per year. Determine if cyclical or structural.", ev))
+        flags.append(("MEDIUM","Revenue declining", f"{rg:.1%}", ev))
     return flags
+
 
 def check_sustained_losses(data):
     flags = []
@@ -289,54 +290,145 @@ def check_sustained_losses(data):
     loss_years = int((s < 0).sum())
     ev = [{"panel":"PL","label":"Net Profit","series":pat,"highlight":"decrease"}]
     if loss_years >= 3:
-        flags.append(("HIGH",f"Loss-making in {loss_years} of {len(s)} years",
-            "Sustained losses — check if unit economics are at least improving YoY.", ev))
+        flags.append(("HIGH","Sustained losses","Multiple years loss", ev))
     elif loss_years >= 1:
-        flags.append(("MEDIUM",f"Net loss in {loss_years} recent year(s)",
-            "Check if one-off or structural. Look at EBITDA to separate operating health.", ev))
+        flags.append(("MEDIUM","Recent losses","Check trend", ev))
     return flags
+
 
 def check_high_leverage(data):
     flags = []
-    de     = data.get("de_ratio")
-    sector = data.get("sector","")
-    if "financial" in sector.lower() or "bank" in sector.lower(): return flags
+    de = data.get("de_ratio")
     if de is None: return flags
-    debt   = data["bs"].get("total_debt")
-    equity = data["bs"].get("equity")
-    ev = [{"panel":"BS","label":"Total Debt","series":debt,"highlight":"increase"},
-          {"panel":"BS","label":"Shareholders Equity","series":equity,"highlight":"decrease"}]
     if de > 2.0:
-        flags.append(("HIGH",f"Very high Debt/Equity ({de:.1f}x)",
-            f"D/E of {de:.1f}x is well above safe levels (<1x for non-financials). "
-            "High leverage amplifies losses and raises solvency risk.", ev))
+        flags.append(("HIGH",f"High D/E ({de:.1f}x)","Leverage risk", []))
     elif de > 1.0:
-        flags.append(("MEDIUM",f"Elevated Debt/Equity ({de:.1f}x)",
-            f"D/E of {de:.1f}x above 1x. Combine with interest coverage for full picture.", ev))
+        flags.append(("MEDIUM",f"Elevated D/E ({de:.1f}x)","Moderate risk", []))
     return flags
+
 
 def check_low_promoter_holding(data):
     flags = []
     ph = data.get("promoter_holding_pct",0)
-    if ph == 0: return flags
-    if ph < 25:
-        flags.append(("LOW",f"Low promoter / insider holding ({ph:.1f}%)",
-            f"Promoters hold only {ph:.1f}%. Watch for any further quarterly decline.", []))
+    if ph and ph < 25:
+        flags.append(("LOW",f"Low promoter holding ({ph:.1f}%)","Governance watch", []))
     return flags
+
+
+# ---------------- NEW ADVANCED CHECKS ---------------- #
+
+def check_cfo_vs_ebit(data):
+    flags = []
+    cfo  = data["cf"].get("cfo")
+    ebit = data["pnl"].get("operating_profit")
+    if cfo is None or ebit is None: return flags
+    avg_cfo, avg_ebit = _avg(cfo,3), _avg(ebit,3)
+    if avg_cfo is None or avg_ebit is None or avg_ebit == 0: return flags
+    r = avg_cfo / avg_ebit
+    ev = [{"panel":"PL","label":"Operating Profit","series":ebit,"highlight":"neutral"},
+          {"panel":"CF","label":"Operating CF (CFO)","series":cfo,"highlight":"decrease"}]
+    if r < 0.7:
+        flags.append(("HIGH","Low CFO vs EBIT",f"{r:.0%}", ev))
+    elif r < 0.85:
+        flags.append(("MEDIUM","Weak CFO vs EBIT",f"{r:.0%}", ev))
+    return flags
+
+
+def check_working_capital_manipulation(data):
+    flags = []
+    rec = data["bs"].get("receivables")
+    inv = data["bs"].get("inventory")
+    liab = data["bs"].get("current_liab")
+    if rec is None or inv is None or liab is None: return flags
+    rec_s, inv_s, liab_s = rec.dropna(), inv.dropna(), liab.dropna()
+    if len(rec_s)<2 or len(inv_s)<2 or len(liab_s)<2: return flags
+    if (liab_s.iloc[-1] > liab_s.iloc[0]) and (rec_s.iloc[-1] < rec_s.iloc[0]) and (inv_s.iloc[-1] < inv_s.iloc[0]):
+        flags.append(("HIGH","Working capital boosting CFO",
+            "Payables ↑, Receivables ↓, Inventory ↓", []))
+    return flags
+
+
+def check_other_income_dependency(data):
+    flags = []
+    other, pat = data["pnl"].get("other_income"), data["pnl"].get("net_profit")
+    if other is None or pat is None: return flags
+    avg_other, avg_pat = _avg(other,3), _avg(pat,3)
+    if avg_other is None or avg_pat is None or avg_pat == 0: return flags
+    r = avg_other / avg_pat
+    if r > 0.5:
+        flags.append(("HIGH","Profit driven by other income",f"{r:.0%}", []))
+    elif r > 0.3:
+        flags.append(("MEDIUM","High other income contribution",f"{r:.0%}", []))
+    return flags
+
+
+def check_margin_anomaly(data):
+    flags = []
+    rev, ebit = data["pnl"].get("revenue"), data["pnl"].get("operating_profit")
+    if rev is None or ebit is None: return flags
+    rev_s, ebit_s = rev.dropna(), ebit.dropna()
+    if len(rev_s)<2 or len(ebit_s)<2: return flags
+    margin_change = (ebit_s.iloc[-1]/rev_s.iloc[-1]) - (ebit_s.iloc[0]/rev_s.iloc[0])
+    if margin_change > 0.08:
+        flags.append(("HIGH","Margin expansion anomaly","Check cost classification", []))
+    return flags
+
+
+def check_capex_vs_cfo(data):
+    flags = []
+    capex, cfo = data["cf"].get("capex"), data["cf"].get("cfo")
+    if capex is None or cfo is None: return flags
+    avg_capex, avg_cfo = abs(_avg(capex,3)), _avg(cfo,3)
+    if avg_capex and avg_cfo and avg_cfo != 0:
+        if avg_capex / avg_cfo > 1.2:
+            flags.append(("MEDIUM","High capex vs CFO","Possible capitalization", []))
+    return flags
+
+
+def check_goodwill_ratio(data):
+    flags = []
+    goodwill = data["bs"].get("goodwill")
+    assets   = data["bs"].get("total_assets")
+    if goodwill is None or assets is None: return flags
+    g, a = _last(goodwill), _last(assets)
+    if g and a and a != 0:
+        ratio = g / a
+        if ratio > 0.3:
+            flags.append(("HIGH","High goodwill","Acquisition risk", []))
+        elif ratio > 0.2:
+            flags.append(("MEDIUM","Elevated goodwill","Monitor impairment", []))
+    return flags
+
+
+# ---------------- RUN ALL ---------------- #
 
 def run_all_checks(data):
     all_flags = []
     for fn in [
-        check_cfo_vs_profit, check_receivables_vs_revenue, check_debt_vs_cfo,
-        check_inventory_buildup, check_interest_coverage, check_negative_cfo_vs_profit,
-        check_revenue_decline, check_sustained_losses, check_high_leverage,
+        check_cfo_vs_profit,
+        check_cfo_vs_ebit,
+        check_receivables_vs_revenue,
+        check_debt_vs_cfo,
+        check_inventory_buildup,
+        check_interest_coverage,
+        check_negative_cfo_vs_profit,
+        check_revenue_decline,
+        check_sustained_losses,
+        check_high_leverage,
         check_low_promoter_holding,
+        check_working_capital_manipulation,
+        check_other_income_dependency,
+        check_margin_anomaly,
+        check_capex_vs_cfo,
+        check_goodwill_ratio,
     ]:
-        try: all_flags.extend(fn(data))
-        except Exception: pass
+        try:
+            all_flags.extend(fn(data))
+        except Exception:
+            pass
+
     score = sum({"HIGH":2,"MEDIUM":1,"LOW":0}.get(s,0) for s,_,*_ in all_flags)
     return all_flags, min(score,10)
-
 
 # ============================================================
 #  SECTION 3 — UI LAYER
