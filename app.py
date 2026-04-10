@@ -963,9 +963,12 @@ with tab_search:
                 with c2:
                     st.metric("Promoter Holding", f"{r['promoter_holding_pct']:.1f}%" if r["promoter_holding_pct"] else "—")
                     st.metric("Sector", r["sector"])
-                with c3:
-                    st.plotly_chart(risk_gauge(r["score"]), use_container_width=True,
-                                    config={"displayModeBar":False})
+                with c3:st.plotly_chart(
+                    risk_gauge(r["score"]),
+                    use_container_width=True,
+                    config={"displayModeBar": False},
+                    key=f"risk_gauge_{r['ticker']}"
+                )
 
                 st.markdown('<div class="section-heading">Red Flags with Financial Evidence</div>',
                             unsafe_allow_html=True)
