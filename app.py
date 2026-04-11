@@ -110,21 +110,13 @@ def resolve_ticker(raw: str) -> str:
     for suffix in [".NS", ".BO"]:
         symbol = raw + suffix
         try:
-            t = yf.Ticker(symbol)
-            # fast_info is more reliable than history() for validation
-            price = t.fast_info.get("lastPrice") or t.fast_info.get("regularMarketPrice")
-            if price:
-                return symbol
-        except Exception:
-            continue
-        try:
-            hist = t.history(period="5d")
+            hist = yf.Ticker(symbol).history(period="5d")
             if not hist.empty:
                 return symbol
         except Exception:
             continue
     return None
-
+    
 def _safe_row(df, names):
     """Return a Series keyed by 4-digit year strings (ascending), or None."""
     if df is None or df.empty: return None
@@ -150,91 +142,125 @@ def _series_cr(series):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_company_data(ticker: str):
-    info, t = {}, None
     for attempt in range(3):
         try:
-            t    = yf.Ticker(ticker)
-            info = t.info or {}
-            if info.get("longName") or info.get("shortName") or info.get("regularMarketPrice"):
-                break
-            if attempt < 2:
-                time.sleep(1.5)
-        except Exception:
-            if attempt < 2:
-                time.sleep(1.5)
-            else:
+            t = yf.Ticker(ticker)
+            # history() is far more reliable than .info for Indian tickers
+            hist = t.history(period="5d")
+            if hist.empty:
+                if attempt < 2:
+                    time.sleep(2)
+                    continue
                 return None
-    if not info.get("longName") and not info.get("shortName"):
-        return None
-    try:
-        raw_pnl  = t.financials
-        raw_bs   = t.balance_sheet
-        raw_cf   = t.cashflow
-        raw_qpnl = t.quarterly_financials
 
-        pnl = {
-            "revenue":          _series_cr(_safe_row(raw_pnl, ["Total Revenue","Revenue"])),
-            "ebitda":           _series_cr(_safe_row(raw_pnl, ["EBITDA","Normalized EBITDA"])),
-            "operating_profit": _series_cr(_safe_row(raw_pnl, ["Operating Income","EBIT"])),
-            "net_profit":       _series_cr(_safe_row(raw_pnl, ["Net Income","Net Income Common Stockholders"])),
-            "interest_exp":     _series_cr(_safe_row(raw_pnl, ["Interest Expense"])),
-            "other_income":     _series_cr(_safe_row(raw_pnl, ["Other Income Expense","Non Operating Income"])),
-            "depreciation":     _series_cr(_safe_row(raw_pnl, ["Reconciled Depreciation","Depreciation And Amortization"])),
-            "gross_profit":     _series_cr(_safe_row(raw_pnl, ["Gross Profit"])),
-        }
-        bs = {
-            "total_debt":         _series_cr(_safe_row(raw_bs, ["Total Debt","Long Term Debt"])),
-            "equity":             _series_cr(_safe_row(raw_bs, ["Stockholders Equity","Common Stock Equity"])),
-            "receivables":        _series_cr(_safe_row(raw_bs, ["Accounts Receivable","Net Receivables"])),
-            "inventory":          _series_cr(_safe_row(raw_bs, ["Inventory"])),
-            "total_assets":       _series_cr(_safe_row(raw_bs, ["Total Assets"])),
-            "current_assets":     _series_cr(_safe_row(raw_bs, ["Current Assets"])),
-            "current_liab":       _series_cr(_safe_row(raw_bs, ["Current Liabilities"])),
-            "cash":               _series_cr(_safe_row(raw_bs, ["Cash And Cash Equivalents",
-                                             "Cash Cash Equivalents And Short Term Investments"])),
-            "goodwill":           _series_cr(_safe_row(raw_bs, ["Goodwill","Goodwill And Other Intangible Assets"])),
-            "payables":           _series_cr(_safe_row(raw_bs, ["Accounts Payable","Payables"])),
-            "non_current_assets": _series_cr(_safe_row(raw_bs, ["Net PPE","Total Non Current Assets"])),
-            "deferred_tax":       _series_cr(_safe_row(raw_bs, ["Deferred Tax Assets","Deferred Income Tax"])),
-        }
-        cf = {
-            "cfo":      _series_cr(_safe_row(raw_cf, ["Operating Cash Flow","Cash From Operations"])),
-            "capex":    _series_cr(_safe_row(raw_cf, ["Capital Expenditure"])),
-            "fcf":      _series_cr(_safe_row(raw_cf, ["Free Cash Flow"])),
-            "investing":_series_cr(_safe_row(raw_cf, ["Investing Cash Flow","Cash From Investing Activities"])),
-        }
+            # Try fetching info — but don't rely on it for validation
+            try:
+                info = t.info or {}
+            except Exception:
+                info = {}
 
-        q4_pct = None
-        try:
-            if raw_qpnl is not None and not raw_qpnl.empty:
-                qrev_row = _safe_row(raw_qpnl, ["Total Revenue","Revenue"])
-                if qrev_row is not None and len(qrev_row) >= 4:
-                    qrev   = qrev_row.sort_index(ascending=False)
-                    last4  = qrev.iloc[:4]
-                    total  = last4.sum()
-                    q4_vals = [v for d, v in last4.items()
-                               if hasattr(d, 'month') and d.month in [3, 12]]
-                    if total and q4_vals:
-                        q4_pct = sum(q4_vals) / float(total)
-        except Exception:
-            pass
+            # Build a fallback name from the ticker if info is empty
+            fallback_name = ticker.replace(".NS","").replace(".BO","")
+            name = info.get("longName") or info.get("shortName") or fallback_name
 
-        return {
-            "ticker":               ticker,
-            "name":                 info.get("longName") or info.get("shortName") or ticker,
-            "sector":               info.get("sector", "Unknown"),
-            "industry":             info.get("industry", "Unknown"),
-            "mcap_cr":              _to_cr(info.get("marketCap")),
-            "de_ratio":             round(info.get("debtToEquity", 0) / 100, 2) if info.get("debtToEquity") else None,
-            "promoter_holding_pct": round(info.get("heldPercentInsiders", 0) * 100, 1),
-            "revenue_growth_pct":   info.get("revenueGrowth"),
-            "operating_margins":    info.get("operatingMargins"),
-            "q4_revenue_pct":       q4_pct,
-            "pnl": pnl, "bs": bs, "cf": cf,
-        }
-    except Exception:
-        return None
+            raw_pnl  = t.financials
+            raw_bs   = t.balance_sheet
+            raw_cf   = t.cashflow
+            raw_qpnl = t.quarterly_financials
 
+            # If all financial statements are empty, it's not useful
+            if (raw_pnl is None or raw_pnl.empty) and \
+               (raw_bs  is None or raw_bs.empty)  and \
+               (raw_cf  is None or raw_cf.empty):
+                if attempt < 2:
+                    time.sleep(2)
+                    continue
+                return None
+
+            pnl = {
+                "revenue":          _series_cr(_safe_row(raw_pnl, ["Total Revenue","Revenue"])),
+                "ebitda":           _series_cr(_safe_row(raw_pnl, ["EBITDA","Normalized EBITDA"])),
+                "operating_profit": _series_cr(_safe_row(raw_pnl, ["Operating Income","EBIT"])),
+                "net_profit":       _series_cr(_safe_row(raw_pnl, ["Net Income","Net Income Common Stockholders"])),
+                "interest_exp":     _series_cr(_safe_row(raw_pnl, ["Interest Expense"])),
+                "other_income":     _series_cr(_safe_row(raw_pnl, ["Other Income Expense","Non Operating Income"])),
+                "depreciation":     _series_cr(_safe_row(raw_pnl, ["Reconciled Depreciation","Depreciation And Amortization"])),
+                "gross_profit":     _series_cr(_safe_row(raw_pnl, ["Gross Profit"])),
+            }
+            bs = {
+                "total_debt":         _series_cr(_safe_row(raw_bs, ["Total Debt","Long Term Debt"])),
+                "equity":             _series_cr(_safe_row(raw_bs, ["Stockholders Equity","Common Stock Equity"])),
+                "receivables":        _series_cr(_safe_row(raw_bs, ["Accounts Receivable","Net Receivables"])),
+                "inventory":          _series_cr(_safe_row(raw_bs, ["Inventory"])),
+                "total_assets":       _series_cr(_safe_row(raw_bs, ["Total Assets"])),
+                "current_assets":     _series_cr(_safe_row(raw_bs, ["Current Assets"])),
+                "current_liab":       _series_cr(_safe_row(raw_bs, ["Current Liabilities"])),
+                "cash":               _series_cr(_safe_row(raw_bs, ["Cash And Cash Equivalents",
+                                                 "Cash Cash Equivalents And Short Term Investments"])),
+                "goodwill":           _series_cr(_safe_row(raw_bs, ["Goodwill","Goodwill And Other Intangible Assets"])),
+                "payables":           _series_cr(_safe_row(raw_bs, ["Accounts Payable","Payables"])),
+                "non_current_assets": _series_cr(_safe_row(raw_bs, ["Net PPE","Total Non Current Assets"])),
+                "deferred_tax":       _series_cr(_safe_row(raw_bs, ["Deferred Tax Assets","Deferred Income Tax"])),
+            }
+            cf = {
+                "cfo":       _series_cr(_safe_row(raw_cf, ["Operating Cash Flow","Cash From Operations"])),
+                "capex":     _series_cr(_safe_row(raw_cf, ["Capital Expenditure"])),
+                "fcf":       _series_cr(_safe_row(raw_cf, ["Free Cash Flow"])),
+                "investing": _series_cr(_safe_row(raw_cf, ["Investing Cash Flow","Cash From Investing Activities"])),
+            }
+
+            q4_pct = None
+            try:
+                if raw_qpnl is not None and not raw_qpnl.empty:
+                    qrev_row = _safe_row(raw_qpnl, ["Total Revenue","Revenue"])
+                    if qrev_row is not None and len(qrev_row) >= 4:
+                        qrev  = qrev_row.sort_index(ascending=False)
+                        last4 = qrev.iloc[:4]
+                        total = last4.sum()
+                        q4_vals = [v for d, v in last4.items()
+                                   if hasattr(d, 'month') and d.month in [3, 12]]
+                        if total and q4_vals:
+                            q4_pct = sum(q4_vals) / float(total)
+            except Exception:
+                pass
+
+            # Safe info field extraction with fallbacks
+            def _safe_info(key, default=None):
+                try:
+                    return info.get(key, default)
+                except Exception:
+                    return default
+
+            de_raw = _safe_info("debtToEquity")
+            de_ratio = round(float(de_raw) / 100, 2) if de_raw else None
+
+            insider_raw = _safe_info("heldPercentInsiders", 0)
+            try:
+                promoter_pct = round(float(insider_raw) * 100, 1)
+            except Exception:
+                promoter_pct = 0.0
+
+            return {
+                "ticker":               ticker,
+                "name":                 name,
+                "sector":               _safe_info("sector", "Unknown"),
+                "industry":             _safe_info("industry", "Unknown"),
+                "mcap_cr":              _to_cr(_safe_info("marketCap")),
+                "de_ratio":             de_ratio,
+                "promoter_holding_pct": promoter_pct,
+                "revenue_growth_pct":   _safe_info("revenueGrowth"),
+                "operating_margins":    _safe_info("operatingMargins"),
+                "q4_revenue_pct":       q4_pct,
+                "pnl": pnl, "bs": bs, "cf": cf,
+            }
+
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(2)
+                continue
+            return None
+
+    return None
 # ============================================================
 #  SECTION 2 — ANALYSIS LAYER
 # ============================================================
