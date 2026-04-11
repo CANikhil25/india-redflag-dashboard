@@ -16,6 +16,7 @@ import numpy as np
 import plotly.graph_objects as go
 import requests
 import json
+import os
 import time
 from datetime import datetime
 
@@ -66,7 +67,7 @@ def compute_beneish_mscore(data):
     """
     Beneish M-Score (8-factor model).
     Returns (score, components_dict, interpretation, verdict_color)
-    
+
     Components:
       DSRI  = Days Sales Receivable Index
       GMI   = Gross Margin Index
@@ -96,7 +97,6 @@ def compute_beneish_mscore(data):
     missing = []
 
     # ── DSRI ──────────────────────────────────────────────────
-    # (Receivables_t / Revenue_t) / (Receivables_t-1 / Revenue_t-1)
     rec_t  = _last(rec);  rec_p = _prev(rec)
     rev_t  = _last(rev);  rev_p = _prev(rev)
     if all(v not in (None, 0) for v in [rec_t, rec_p, rev_t, rev_p]):
@@ -110,7 +110,6 @@ def compute_beneish_mscore(data):
                            "note": "Receivables growing faster than revenue → potential channel stuffing"}
 
     # ── GMI ───────────────────────────────────────────────────
-    # Gross Margin Index = GM_t-1 / GM_t
     gp_t = _last(gp);  gp_p = _prev(gp)
     if all(v not in (None, 0) for v in [gp_t, gp_p, rev_t, rev_p]):
         gm_t = gp_t / rev_t
@@ -125,7 +124,6 @@ def compute_beneish_mscore(data):
                           "note": "Margins deteriorating — incentive to manipulate earnings"}
 
     # ── AQI ───────────────────────────────────────────────────
-    # AQI = [1 - (CA_t + NCA_t) / TA_t] / [1 - (CA_p + NCA_p) / TA_p]
     ca_t  = _last(bs.get("current_assets"));  ca_p  = _prev(bs.get("current_assets"))
     nca_t = _last(nca);                        nca_p = _prev(nca)
     ta_t  = _last(ta);                         ta_p  = _prev(ta)
@@ -142,7 +140,6 @@ def compute_beneish_mscore(data):
                           "note": "Non-current / intangible assets increasing → possible capitalisation"}
 
     # ── SGI ───────────────────────────────────────────────────
-    # Sales Growth Index = Revenue_t / Revenue_t-1
     sgi = _safe_div(rev_t, rev_p) or 1.0
     if rev_t is None or rev_p is None:
         missing.append("SGI")
@@ -152,7 +149,6 @@ def compute_beneish_mscore(data):
                           "note": "High growth companies face pressure to sustain it through manipulation"}
 
     # ── DEPI ──────────────────────────────────────────────────
-    # DEPI = (Dep_t-1 / (Dep_t-1 + PPE_t-1)) / (Dep_t / (Dep_t + PPE_t))
     dep_t = _last(dep); dep_p = _prev(dep)
     ppe_t = _last(nca);  ppe_p = _prev(nca)
     if all(v not in (None, 0) for v in [dep_t, dep_p, ppe_t, ppe_p]):
@@ -168,7 +164,6 @@ def compute_beneish_mscore(data):
                            "note": "Slowing depreciation rate → assets being sweated or life extended"}
 
     # ── SGAI ──────────────────────────────────────────────────
-    # Proxy: Interest expense / Revenue (SG&A not directly available from yfinance)
     int_t = abs(_last(pnl.get("interest_exp")) or 0)
     int_p = abs(_prev(pnl.get("interest_exp")) or 0)
     if all(v not in (None, 0) for v in [int_t, int_p, rev_t, rev_p]):
@@ -184,7 +179,6 @@ def compute_beneish_mscore(data):
                            "note": "Disproportionate expense growth vs revenue"}
 
     # ── LVGI ──────────────────────────────────────────────────
-    # LVGI = (LTD_t + CL_t) / TA_t  /  (LTD_p + CL_p) / TA_p
     cl_t  = _last(bs.get("current_liab")); cl_p = _prev(bs.get("current_liab"))
     dbt_t = _last(debt);                   dbt_p = _prev(debt)
     if all(v not in (None, 0) for v in [cl_t, cl_p, dbt_t, dbt_p, ta_t, ta_p]):
@@ -200,7 +194,6 @@ def compute_beneish_mscore(data):
                            "note": "Increasing leverage → debt covenant pressure to inflate profits"}
 
     # ── TATA ──────────────────────────────────────────────────
-    # Total Accruals to Total Assets = (Net Income - CFO) / Total Assets
     pat_t = _last(pat)
     cfo_t = _last(cfo)
     if all(v is not None for v in [pat_t, cfo_t, ta_t]) and ta_t != 0:
@@ -263,12 +256,6 @@ def compute_altman_zscore(data, sector=""):
     """
     Altman Z-Score (public company model).
     Z = 1.2*X1 + 1.4*X2 + 3.3*X3 + 0.6*X4 + 1.0*X5
-    
-    X1 = Working Capital / Total Assets
-    X2 = Retained Earnings / Total Assets  (proxy: Equity - Paid-up, use net profit cumulative)
-    X3 = EBIT / Total Assets
-    X4 = Market Cap / Total Liabilities
-    X5 = Revenue / Total Assets
     """
     pnl  = data.get("pnl", {})
     bs   = data.get("bs",  {})
@@ -297,7 +284,6 @@ def compute_altman_zscore(data, sector=""):
                          "note": "Liquidity measure — negative means current debts exceed current assets"}
 
     # X2 — Retained Earnings proxy / TA
-    # Use cumulative net profit as retained earnings proxy (yfinance doesn't expose RE directly)
     pat_series = pnl.get("net_profit")
     if pat_series is not None and ta not in (None, 0):
         re_proxy = float(pat_series.dropna().sum())
@@ -351,7 +337,6 @@ def compute_altman_zscore(data, sector=""):
     z_score = round(z_score, 3)
 
     # ── INTERPRETATION ────────────────────────────────────────
-    # Note: For financial/banking sectors Z-score is less applicable
     is_financial = any(k in sector.lower() for k in ["bank", "financial", "nbfc", "insurance"])
 
     if is_financial:
@@ -392,14 +377,34 @@ def compute_altman_zscore(data, sector=""):
 #  SECTION B — CLAUDE API CALLER
 # ══════════════════════════════════════════════════════════════
 
+def _get_api_key():
+    """Retrieve API key from Streamlit secrets or environment — never hardcoded."""
+    # Try streamlit secrets first (production)
+    try:
+        key = st.secrets.get("ANTHROPIC_API_KEY")
+        if key:
+            return key
+    except Exception:
+        pass
+    # Fallback to environment variable (local dev)
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if key:
+        return key
+    return None
+
+
 def call_claude_api(prompt, system_prompt, max_tokens=2500):
     """
     Calls Anthropic API with web_search tool enabled.
-    Returns the full text response.
+    Returns the full text response or a ⚠️-prefixed error string.
     """
+    api_key = _get_api_key()
+    if not api_key:
+        return "⚠️ ANTHROPIC_API_KEY not found. Set it in Streamlit secrets or as an environment variable."
+
     try:
         payload = {
-            "model": "claude-sonnet-4-20250514",
+            "model": "claude-sonnet-4-6",
             "max_tokens": max_tokens,
             "system": system_prompt,
             "tools": [
@@ -414,14 +419,22 @@ def call_claude_api(prompt, system_prompt, max_tokens=2500):
         }
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "anthropic-beta": "web-search-2025-03-05",
+            },
             json=payload,
-            timeout=60
+            timeout=90,
         )
-        resp.raise_for_status()
+        # Surface HTTP errors with response body for debugging
+        if not resp.ok:
+            return f"⚠️ HTTP {resp.status_code}: {resp.text[:400]}"
+
         data = resp.json()
 
-        # Extract all text blocks (web search may produce multiple blocks)
+        # Extract all text blocks — web search produces multiple blocks
         text_parts = []
         for block in data.get("content", []):
             if block.get("type") == "text":
@@ -429,22 +442,95 @@ def call_claude_api(prompt, system_prompt, max_tokens=2500):
         return "\n".join(text_parts).strip()
 
     except requests.exceptions.Timeout:
-        return "⚠️ Request timed out. Please try again."
+        return "⚠️ Request timed out after 90 s. Please try again."
     except requests.exceptions.RequestException as e:
-        return f"⚠️ API error: {str(e)[:200]}"
+        return f"⚠️ Network error: {str(e)[:200]}"
     except Exception as e:
         return f"⚠️ Unexpected error: {str(e)[:200]}"
 
 
-def governance_scan(company_name, ticker, sector):
+def _parse_json_response(raw, context=""):
+    """
+    Safely extract a JSON object from a Claude response string.
+    Returns (parsed_dict_or_None, error_string_or_None)
+    """
+    if not raw or raw.startswith("⚠️"):
+        return None, raw
+
+    try:
+        clean = raw.replace("```json", "").replace("```", "").strip()
+        start = clean.find("{")
+        end   = clean.rfind("}") + 1
+        if start >= 0 and end > start:
+            return json.loads(clean[start:end]), None
+    except json.JSONDecodeError as e:
+        return None, f"JSON parse error ({context}): {str(e)[:150]}\nRaw (first 300 chars): {raw[:300]}"
+
+    return None, f"No JSON object found in response ({context})"
+
+
+# ══════════════════════════════════════════════════════════════
+#  SECTION B1 — GOVERNANCE SCAN
+# ══════════════════════════════════════════════════════════════
+
+def _governance_fallback(raw=""):
+    return {
+        "governance_score":   5,
+        "overall_risk":       "UNKNOWN",
+        "auditor_issues":     [],
+        "sebi_actions":       [],
+        "board_changes":      [],
+        "credit_events":      [],
+        "regulatory_actions": [],
+        "other_flags":        [],
+        "positive_signals":   [],
+        "summary":            raw[:500] if raw and not raw.startswith("⚠️") else "Could not retrieve governance data.",
+        "sources_checked":    [],
+    }
+
+
+def governance_scan(company_name, ticker, sector, risk_flags=None, manip_flags=None):
     """
     Uses Claude API + web search to scan governance risks.
-    Returns structured dict with findings.
+    Dynamically derives search intent from detected financial red flags
+    instead of using hardcoded query templates.
     """
+    if risk_flags is None:
+        risk_flags = []
+    if manip_flags is None:
+        manip_flags = []
+
     nse_sym = ticker.replace(".NS", "").replace(".BO", "")
 
+    # ── Build dynamic flag context ─────────────────────────────
+    # Pass actual detected flags so Claude knows WHAT to investigate
+    flag_lines = []
+    for f in risk_flags:
+        severity = f[1] if len(f) > 1 else "MEDIUM"
+        detail   = f[2] if len(f) > 2 else str(f)
+        flag_lines.append(f"  - [{severity}] {detail}")
+    for f in manip_flags:
+        severity = f[1] if len(f) > 1 else "MEDIUM"
+        detail   = f[2] if len(f) > 2 else str(f)
+        flag_lines.append(f"  - [{severity}] {detail}")
+
+    flag_context = ""
+    if flag_lines:
+        flag_context = (
+            "\n\nFINANCIAL RED FLAGS ALREADY DETECTED IN THIS COMPANY'S DATA:\n"
+            + "\n".join(flag_lines)
+            + "\n\nFor each financial flag above, search for real-world events that could EXPLAIN it. "
+            "For example:\n"
+            "  • High receivables / low CFO  →  check for customer defaults, channel stuffing allegations\n"
+            "  • High leverage               →  check for credit rating downgrades, loan defaults, NPA disclosures\n"
+            "  • Falling margins             →  check for regulatory price caps, raw material issues, competition\n"
+            "  • Promoter pledge increase    →  check for stake sale news, margin calls\n"
+            "  • Auditor flags (TATA/AQI)    →  check for auditor qualification or resignation\n"
+            "Prioritise searches that directly connect financial anomalies to real events."
+        )
+
     system = """You are a forensic equity research analyst specializing in Indian listed companies.
-Your job is to scan for governance risks. Be factual, cite sources, be concise.
+Your job is to scan for governance risks using web search. Be factual, cite sources, be concise.
 You MUST respond ONLY in valid JSON. No markdown, no explanation outside the JSON.
 Return this exact structure:
 {
@@ -454,6 +540,7 @@ Return this exact structure:
   "sebi_actions": [{"date": "...", "detail": "...", "severity": "<LOW|MEDIUM|HIGH>"}],
   "board_changes": [{"date": "...", "detail": "...", "severity": "<LOW|MEDIUM|HIGH>"}],
   "credit_events": [{"date": "...", "detail": "...", "severity": "<LOW|MEDIUM|HIGH>"}],
+  "regulatory_actions": [{"date": "...", "detail": "...", "severity": "<LOW|MEDIUM|HIGH>"}],
   "other_flags": [{"date": "...", "detail": "...", "severity": "<LOW|MEDIUM|HIGH>"}],
   "positive_signals": ["..."],
   "summary": "<2-3 sentence governance summary>",
@@ -462,140 +549,47 @@ Return this exact structure:
 If nothing found for a category return empty array [].
 """
 
-    prompt = f"""Search for governance risk signals for {company_name} (NSE: {nse_sym}) in the last 18 months.
+    prompt = f"""Search for governance risk signals for {company_name} (NSE: {nse_sym}, Sector: {sector}) in the last 24 months.
+{flag_context}
 
-Check for:
-1. Auditor resignation or audit qualification
-2. SEBI investigation, show-cause notice, or penalty
-3. Independent director or CFO resignation
-4. Credit rating downgrade or default
-5. Promoter pledge increase above 50%
-6. Related party transaction concerns
-7. Any fraud, scam, or whistleblower allegations
-8. Regulatory or court orders against the company
+You have web search — use it intelligently. Based on the company, its sector, and the financial flags above,
+DECIDE what to search for. Do NOT limit yourself to a fixed list. Adapt queries to what you find.
 
-Search queries to use:
-- "{company_name} auditor resignation 2024 2025"
-- "{company_name} SEBI notice investigation"  
-- "{company_name} director resignation 2024 2025"
-- "{nse_sym} NSE BSE corporate governance"
-- "{company_name} credit rating downgrade default"
+Always check at minimum:
+1. Auditor resignation, qualification, or change — search "{company_name} auditor resignation qualification 2024 2025"
+2. SEBI / RBI / IRDAI / any sector regulator investigation, notice, or penalty
+3. Independent director, CFO, CEO, CXO resignation or sudden exit
+4. Credit rating downgrade, NPA classification, loan default, NCLT/IBC filings
+5. Promoter pledge increase above 50% or emergency stake sale
+6. Related party transaction disputes or whistleblower allegations
+7. Court orders against the company or key promoters
+8. Any regulatory action specific to the {sector} sector
 
+For a {sector} company, also check the relevant sector regulator (RBI for banks/NBFCs,
+IRDAI for insurance, TRAI for telecom, SEBI for brokers, etc.).
+
+After initial searches, follow up on any leads found — do not stop at just one search per topic.
 Return ONLY valid JSON."""
 
-    raw = call_claude_api(prompt, system, max_tokens=1500)
+    raw = call_claude_api(prompt, system, max_tokens=2000)
 
-    # Parse JSON safely
-    try:
-        # Strip any accidental markdown fences
-        clean = raw.replace("```json", "").replace("```", "").strip()
-        # Find JSON object
-        start = clean.find("{")
-        end   = clean.rfind("}") + 1
-        if start >= 0 and end > start:
-            return json.loads(clean[start:end])
-    except Exception:
-        pass
+    if raw.startswith("⚠️"):
+        st.error(f"🚨 Governance scan API error: {raw}")
+        return _governance_fallback(raw)
 
-    # Fallback structure
-    return {
-        "governance_score": 5,
-        "overall_risk":     "UNKNOWN",
-        "auditor_issues":   [],
-        "sebi_actions":     [],
-        "board_changes":    [],
-        "credit_events":    [],
-        "other_flags":      [],
-        "positive_signals": [],
-        "summary":          raw[:500] if raw and not raw.startswith("⚠️") else "Could not retrieve governance data.",
-        "sources_checked":  [],
-    }
+    result, err = _parse_json_response(raw, context="governance_scan")
+    if err:
+        st.warning(f"⚠️ Governance data parse issue: {err}")
+        return _governance_fallback(raw)
+
+    return result
 
 
-def concall_intelligence(company_name, ticker, risk_flags, manip_flags):
-    """
-    Uses Claude API + web search to find concall commentary.
-    Tracks management explanations for detected red flags.
-    Returns structured dict with 4-quarter trend analysis.
-    """
-    nse_sym = ticker.replace(".NS", "").replace(".BO", "")
+# ══════════════════════════════════════════════════════════════
+#  SECTION B2 — CONCALL INTELLIGENCE
+# ══════════════════════════════════════════════════════════════
 
-    # Build flag summary for context
-    all_flags = []
-    for f in risk_flags:
-        all_flags.append(f"RISK [{f[1]}]: {f[2]}")
-    for f in manip_flags:
-        all_flags.append(f"MANIPULATION [{f[1]}]: {f[2]}")
-
-    flag_text = "\n".join(all_flags[:8]) if all_flags else "No specific flags — do general management credibility review"
-
-    system = """You are a forensic equity analyst reviewing management credibility via earnings call transcripts.
-Search for the last 4 quarters of concall/earnings call commentary for an Indian listed company.
-Respond ONLY in valid JSON. No markdown. No preamble.
-Return this exact structure:
-{
-  "quarters_found": <integer 0-4>,
-  "quarters_data": [
-    {
-      "quarter": "Q1 FY25",
-      "date": "July 2024",
-      "key_themes": ["..."],
-      "commentary_on_flags": {"<flag_name>": "<what management said>"},
-      "management_tone": "<Confident|Cautious|Evasive|Optimistic|Defensive>",
-      "credibility_score": <1-10>,
-      "notable_quotes": ["<under 15 words>"]
-    }
-  ],
-  "flag_tracking": [
-    {
-      "flag": "<flag title>",
-      "trend": "<Resolved|Improving|Persistent|Worsening|Not Addressed>",
-      "trend_color": "<green|yellow|orange|red>",
-      "q_by_q": {"Q1": "...", "Q2": "...", "Q3": "...", "Q4": "..."},
-      "management_credible": <true|false>,
-      "insight": "<2 sentence analyst insight>"
-    }
-  ],
-  "overall_credibility": "<LOW|MEDIUM|HIGH>",
-  "credibility_score": <1-10>,
-  "key_concerns": ["..."],
-  "positive_signals": ["..."],
-  "summary": "<3-4 sentence overall concall intelligence summary>"
-}
-"""
-
-    prompt = f"""Analyze earnings call / concall transcripts for {company_name} (NSE: {nse_sym}).
-
-RED FLAGS DETECTED IN FINANCIAL DATA:
-{flag_text}
-
-Search for:
-1. Last 4 quarters earnings call transcripts or summaries
-2. Management commentary on the specific red flags above
-3. Guidance consistency vs actual results
-4. Any admissions of issues or forward-looking warnings
-
-Search queries:
-- "{company_name} earnings call transcript Q4 Q3 Q2 Q1 FY25 FY24"
-- "{company_name} concall management commentary 2024 2025"
-- "{company_name} investor call working capital receivables" (if relevant)
-- "site:screener.in {nse_sym} concall"
-
-For each flag found, track what management said across quarters. 
-Note if management kept changing their explanation (credibility concern).
-Return ONLY valid JSON."""
-
-    raw = call_claude_api(prompt, system, max_tokens=2500)
-
-    try:
-        clean = raw.replace("```json", "").replace("```", "").strip()
-        start = clean.find("{")
-        end   = clean.rfind("}") + 1
-        if start >= 0 and end > start:
-            return json.loads(clean[start:end])
-    except Exception:
-        pass
-
+def _concall_fallback(raw=""):
     return {
         "quarters_found":      0,
         "quarters_data":       [],
@@ -606,6 +600,131 @@ Return ONLY valid JSON."""
         "positive_signals":    [],
         "summary":             raw[:500] if raw and not raw.startswith("⚠️") else "Could not retrieve concall data.",
     }
+
+
+def concall_intelligence(company_name, ticker, risk_flags, manip_flags):
+    """
+    Uses Claude API + web search to find concall commentary.
+    Two-stage approach:
+      Stage 1 — Find WHERE concall data lives (screener.in, IR page, news coverage)
+      Stage 2 — Extract WHAT management said about detected red flags, track quarter-by-quarter
+    """
+    nse_sym = ticker.replace(".NS", "").replace(".BO", "")
+
+    # ── Build specific flag questions ──────────────────────────
+    flag_lines = []
+    for f in (risk_flags + manip_flags)[:8]:
+        severity = f[1] if len(f) > 1 else "MEDIUM"
+        detail   = f[2] if len(f) > 2 else str(f)
+        flag_lines.append(f"  - [{severity}] {detail}")
+
+    flag_section = (
+        "\n".join(flag_lines)
+        if flag_lines
+        else "  - No specific flags — perform a general management credibility review"
+    )
+
+    system = """You are a forensic equity analyst reviewing management credibility via earnings calls.
+You have web search. Use it to find concall transcripts, summaries, investor presentations, and news coverage.
+
+Best sources for Indian companies:
+- screener.in/company/{SYMBOL}/concalls  (often has embedded transcripts)
+- tijorifinance.com
+- Company investor relations (IR) page
+- NSE/BSE corporate announcements
+- Motilal Oswal, Kotak, ICICI Securities, Emkay research notes
+- MoneyControl, Economic Times, Business Standard earnings call coverage
+
+IMPORTANT: Raw transcript PDFs may not be accessible via web search. In that case,
+search for NEWS COVERAGE and ANALYST NOTE SUMMARIES of the earnings call — journalists
+and analysts frequently quote management directly and those pages are indexed.
+
+Respond ONLY in valid JSON. No markdown. No preamble. No trailing text after the JSON."""
+
+    prompt = f"""Find and analyze the last 4 quarters of earnings call / concall data for {company_name} (NSE: {nse_sym}).
+
+FINANCIAL RED FLAGS TO TRACK — find what management said about each one:
+{flag_section}
+
+=== STEP 1: LOCATE SOURCES ===
+Search for concall data using these approaches (adapt based on what you find):
+  a) "{nse_sym} concall transcript Q4 Q3 Q2 FY25 FY26"
+  b) "{company_name} earnings call management commentary 2024 2025"
+  c) "screener.in {nse_sym} concall" — try to access the screener concall page
+  d) "{company_name} investor day analyst call presentation"
+  e) "{company_name} quarterly results management commentary" (news articles)
+
+=== STEP 2: EXTRACT PER QUARTER ===
+For each quarter found (Q1/Q2/Q3/Q4 FY25 or FY26):
+  - What were the top 3 themes management discussed?
+  - SPECIFICALLY what did they say about the red flags listed above?
+  - Did their explanation for any flag CHANGE from the previous quarter? (key credibility signal)
+  - What guidance did they give vs what actually happened?
+  - Were they specific and quantitative, or vague and deflecting?
+
+=== STEP 3: CREDIBILITY SIGNALS ===
+Signs of LOW credibility to watch for:
+  • Explanations for red flags keep changing quarter to quarter
+  • Vague language ("industry headwinds", "transient issues") with no resolution timeline
+  • Guided high repeatedly but delivered low
+  • Avoided analyst questions on specific concerns
+  • Changed accounting policies without clear explanation
+
+Return this exact JSON structure:
+{{
+  "quarters_found": <0-4>,
+  "quarters_data": [
+    {{
+      "quarter": "Q4 FY25",
+      "date": "May 2025",
+      "source": "<URL or source name where you found this>",
+      "key_themes": ["theme 1", "theme 2", "theme 3"],
+      "commentary_on_flags": {{"<flag short name>": "<what management said — be specific>"}},
+      "management_tone": "<Confident|Cautious|Evasive|Optimistic|Defensive>",
+      "credibility_score": <1-10>,
+      "notable_quotes": ["<direct quote under 15 words>"],
+      "guidance_given": "<what they guided for next quarter/year>",
+      "red_flags_in_call": ["<anything concerning said or conspicuously avoided>"]
+    }}
+  ],
+  "flag_tracking": [
+    {{
+      "flag": "<flag title from the list above>",
+      "trend": "<Resolved|Improving|Persistent|Worsening|Not Addressed>",
+      "trend_color": "<green|yellow|orange|red>",
+      "q_by_q": {{
+        "Q1": "<what management said in Q1, or — if not found>",
+        "Q2": "<Q2 commentary>",
+        "Q3": "<Q3 commentary>",
+        "Q4": "<Q4 / most recent commentary>"
+      }},
+      "management_credible": <true|false>,
+      "insight": "<2-sentence analyst insight: did management address this honestly? Did it get resolved?>"
+    }}
+  ],
+  "overall_credibility": "<LOW|MEDIUM|HIGH>",
+  "credibility_score": <1-10>,
+  "key_concerns": ["<concern 1>", "<concern 2>"],
+  "positive_signals": ["<positive 1>"],
+  "summary": "<3-4 sentence overall assessment of management credibility based on concall evidence>"
+}}
+
+If you cannot find transcript text for a quarter, use news articles or analyst notes that quote management.
+If genuinely no data is found for a quarter, omit it from quarters_data (do not fabricate).
+Return ONLY valid JSON."""
+
+    raw = call_claude_api(prompt, system, max_tokens=3000)
+
+    if raw.startswith("⚠️"):
+        st.error(f"🚨 Concall intelligence API error: {raw}")
+        return _concall_fallback(raw)
+
+    result, err = _parse_json_response(raw, context="concall_intelligence")
+    if err:
+        st.warning(f"⚠️ Concall data parse issue: {err}")
+        return _concall_fallback(raw)
+
+    return result
 
 
 # ══════════════════════════════════════════════════════════════
@@ -673,7 +792,7 @@ def compute_final_verdict(risk_score, manip_score, m_score_result, z_score_resul
         score_components.append(("Altman Z-Score", 2, 10, "#22c55e"))
 
     # ── Governance ─────────────────────────────────────────────
-    gov_risk = governance_result.get("overall_risk", "UNKNOWN")
+    gov_risk  = governance_result.get("overall_risk", "UNKNOWN")
     gov_score = governance_result.get("governance_score", 5)
     if gov_risk == "HIGH":
         reasons.append(f"High governance risk (score: {gov_score}/10)")
@@ -688,7 +807,7 @@ def compute_final_verdict(risk_score, manip_score, m_score_result, z_score_resul
         score_components.append(("Governance", 5, 10, "#6b7280"))
 
     # ── Concall credibility ────────────────────────────────────
-    cc_cred = concall_result.get("overall_credibility", "UNKNOWN")
+    cc_cred  = concall_result.get("overall_credibility", "UNKNOWN")
     cc_score = concall_result.get("credibility_score", 5)
     if cc_cred == "LOW":
         reasons.append(f"Low management credibility in earnings calls (score: {cc_score}/10)")
@@ -703,12 +822,12 @@ def compute_final_verdict(risk_score, manip_score, m_score_result, z_score_resul
 
     # ── Compute weighted composite ─────────────────────────────
     weights = {
-        "Financial Risk":     0.25,
-        "Manipulation Signal":0.20,
-        "Beneish M-Score":    0.20,
-        "Altman Z-Score":     0.15,
-        "Governance":         0.10,
-        "Mgmt Credibility":   0.10,
+        "Financial Risk":      0.25,
+        "Manipulation Signal": 0.20,
+        "Beneish M-Score":     0.20,
+        "Altman Z-Score":      0.15,
+        "Governance":          0.10,
+        "Mgmt Credibility":    0.10,
     }
     composite = 0.0
     for label, val, mx, _ in score_components:
@@ -721,21 +840,21 @@ def compute_final_verdict(risk_score, manip_score, m_score_result, z_score_resul
     red_count = sum(1 for r in reasons if "High" in r or "distress" in r or "manipulation zone" in r)
 
     if composite >= 6.5 or red_count >= 3:
-        verdict      = "AVOID"
+        verdict       = "AVOID"
         verdict_color = "#ef4444"
         verdict_bg    = "rgba(220,38,38,0.08)"
         verdict_border= "rgba(220,38,38,0.3)"
         verdict_icon  = "🔴"
         verdict_desc  = "Multiple high-severity signals across financial, forensic, and governance dimensions."
     elif composite >= 4.0 or red_count >= 1:
-        verdict      = "WATCH"
+        verdict       = "WATCH"
         verdict_color = "#f59e0b"
         verdict_bg    = "rgba(245,158,11,0.08)"
         verdict_border= "rgba(245,158,11,0.3)"
         verdict_icon  = "🟡"
         verdict_desc  = "Some concerns detected. Not safe to invest without deeper due diligence."
     else:
-        verdict      = "INVEST"
+        verdict       = "INVEST"
         verdict_color = "#22c55e"
         verdict_bg    = "rgba(34,197,94,0.08)"
         verdict_border= "rgba(34,197,94,0.3)"
@@ -743,15 +862,15 @@ def compute_final_verdict(risk_score, manip_score, m_score_result, z_score_resul
         verdict_desc  = "No major red flags. Financials appear trustworthy. Proceed with normal valuation analysis."
 
     return {
-        "verdict":         verdict,
-        "verdict_color":   verdict_color,
-        "verdict_bg":      verdict_bg,
-        "verdict_border":  verdict_border,
-        "verdict_icon":    verdict_icon,
-        "verdict_desc":    verdict_desc,
-        "composite_score": composite,
-        "reasons":         reasons,
-        "positives":       positives,
+        "verdict":          verdict,
+        "verdict_color":    verdict_color,
+        "verdict_bg":       verdict_bg,
+        "verdict_border":   verdict_border,
+        "verdict_icon":     verdict_icon,
+        "verdict_desc":     verdict_desc,
+        "composite_score":  composite,
+        "reasons":          reasons,
+        "positives":        positives,
         "score_components": score_components,
     }
 
@@ -760,7 +879,6 @@ def compute_final_verdict(risk_score, manip_score, m_score_result, z_score_resul
 #  SECTION E — UI RENDERER
 # ══════════════════════════════════════════════════════════════
 
-# ── CSS for Deep Research Tab ─────────────────────────────────
 DEEP_RESEARCH_CSS = """
 <style>
 /* ── SNAPSHOT HEADER ── */
@@ -991,6 +1109,12 @@ DEEP_RESEARCH_CSS = """
 .tone-Defensive  { color: #f87171; background: rgba(248,113,113,0.1); }
 .tone-Optimistic { color: #60a5fa; background: rgba(96,165,250,0.1); }
 .quarter-theme { font-size: 0.72rem; color: #6b7280; line-height: 1.6; }
+.quarter-source {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.55rem;
+    color: #374151;
+    margin-top: 5px;
+}
 
 /* ── FLAG TRACKING ── */
 .flag-track {
@@ -1016,10 +1140,10 @@ DEEP_RESEARCH_CSS = """
     border-radius: 6px;
     white-space: nowrap;
 }
-.status-Resolved   { color: #34d399; background: rgba(52,211,153,0.1); }
-.status-Improving  { color: #60a5fa; background: rgba(96,165,250,0.1); }
-.status-Persistent { color: #f59e0b; background: rgba(245,158,11,0.1); }
-.status-Worsening  { color: #ef4444; background: rgba(220,38,38,0.1); }
+.status-Resolved      { color: #34d399; background: rgba(52,211,153,0.1); }
+.status-Improving     { color: #60a5fa; background: rgba(96,165,250,0.1); }
+.status-Persistent    { color: #f59e0b; background: rgba(245,158,11,0.1); }
+.status-Worsening     { color: #ef4444; background: rgba(220,38,38,0.1); }
 .status-Not-Addressed { color: #9ca3af; background: rgba(156,163,175,0.1); }
 .flag-q-grid {
     display: grid;
@@ -1133,26 +1257,6 @@ DEEP_RESEARCH_CSS = """
     color: #374151;
     font-size: 0.78rem;
 }
-
-/* ── LOADING PULSE ── */
-.dr-loading {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.65rem;
-    color: #4b5563;
-    padding: 0.5rem 0;
-}
-.pulse-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    animation: pulse-dr 1.5s infinite;
-}
-@keyframes pulse-dr {
-    0%,100% { opacity: 1; transform: scale(1); }
-    50%      { opacity: 0.3; transform: scale(0.8); }
-}
 </style>
 """
 
@@ -1205,8 +1309,7 @@ def _component_waterfall(components, title, color):
     """Waterfall-style bar chart for M-Score or Z-Score components."""
     labels = list(components.keys())
     values = [v["value"] * v["weight"] for v in components.values()]
-    colors = [color if components[k]["flag"] else "#1f2d47"
-              for k in labels] if "flag" in list(components.values())[0] else [color] * len(labels)
+    colors = [color if components[k].get("flag") else "#1f2d47" for k in labels]
 
     fig = go.Figure(go.Bar(
         x=labels,
@@ -1280,20 +1383,29 @@ def render_deep_research_tab(result):
     """
     st.markdown(DEEP_RESEARCH_CSS, unsafe_allow_html=True)
 
-    ticker  = result["ticker"]
-    name    = result["name"]
-    sector  = result["sector"]
-    mcap    = result.get("mcap_cr")
-    de      = result.get("de_ratio")
-    promo   = result.get("promoter_holding_pct")
-    risk_sc = result.get("risk_score", 0)
-    manip_sc= result.get("manip_score", 0)
-    rf      = result.get("risk_flags", [])
-    mf      = result.get("manip_flags", [])
+    ticker   = result["ticker"]
+    name     = result["name"]
+    sector   = result["sector"]
+    mcap     = result.get("mcap_cr")
+    de       = result.get("de_ratio")
+    promo    = result.get("promoter_holding_pct")
+    risk_sc  = result.get("risk_score", 0)
+    manip_sc = result.get("manip_score", 0)
+    rf       = result.get("risk_flags", [])
+    mf       = result.get("manip_flags", [])
 
     nse_sym = ticker.replace(".NS", "").replace(".BO", "")
 
-    # ── SNAPSHOT HEADER ──────────────────────────────────────
+    # ── API key check upfront ─────────────────────────────────
+    if not _get_api_key():
+        st.error(
+            "🔑 **ANTHROPIC_API_KEY not found.**\n\n"
+            "Add it to `.streamlit/secrets.toml`:\n```\nANTHROPIC_API_KEY = 'sk-ant-...'\n```\n"
+            "Or set it as an environment variable before running Streamlit."
+        )
+        return
+
+    # ── SNAPSHOT HEADER ───────────────────────────────────────
     risk_color  = "#ef4444" if risk_sc  >= 6 else "#f59e0b" if risk_sc  >= 3 else "#22c55e"
     manip_color = "#a78bfa" if manip_sc >= 6 else "#c4b5fd" if manip_sc >= 3 else "#6ee7b7"
 
@@ -1341,7 +1453,8 @@ def render_deep_research_tab(result):
     st.markdown("""
     <div class="dr-section">
       <div class="dr-section-title" style="color:#a78bfa;">
-        <span style="width:7px;height:7px;border-radius:50%;background:#a78bfa;display:inline-block;box-shadow:0 0 8px rgba(167,139,250,0.5);"></span>
+        <span style="width:7px;height:7px;border-radius:50%;background:#a78bfa;display:inline-block;
+              box-shadow:0 0 8px rgba(167,139,250,0.5);"></span>
         Forensic Risk Models
       </div>
     """, unsafe_allow_html=True)
@@ -1355,7 +1468,8 @@ def render_deep_research_tab(result):
         <div class="forensic-card" style="border:1px solid rgba(167,139,250,0.15);">
           <div class="forensic-label">🟣 Beneish M-Score</div>
           <div class="forensic-score" style="color:{mc};">{m_result['score']}</div>
-          <div class="forensic-verdict" style="color:{mc};background:rgba(167,139,250,0.08);border:1px solid rgba(167,139,250,0.2);">
+          <div class="forensic-verdict" style="color:{mc};background:rgba(167,139,250,0.08);
+               border:1px solid rgba(167,139,250,0.2);">
             {m_result['verdict_icon']} {m_result['interpretation']}
           </div>
           <div style="font-family:'JetBrains Mono',monospace;font-size:0.55rem;color:#374151;margin-top:8px;">
@@ -1367,21 +1481,20 @@ def render_deep_research_tab(result):
         st.plotly_chart(
             _gauge_chart(m_result["score"], mc, "M-Score", -4, 0,
                          threshold=-1.78, threshold_label="⚠ -1.78 threshold"),
-            use_container_width=True,
-            config={"displayModeBar": False},
-            key="gauge_mscore"
+            use_container_width=True, config={"displayModeBar": False}, key="gauge_mscore"
         )
-
         st.plotly_chart(
             _component_waterfall(m_result["components"], "Weighted component contributions", mc),
-            use_container_width=True,
-            config={"displayModeBar": False},
-            key="bar_mscore"
+            use_container_width=True, config={"displayModeBar": False}, key="bar_mscore"
         )
 
-        # Component table
         if m_result["red_flags"]:
-            st.markdown(f"<div style='font-family:JetBrains Mono,monospace;font-size:0.6rem;color:#ef4444;margin:8px 0 4px;text-transform:uppercase;letter-spacing:1.5px;'>🚩 {len(m_result['red_flags'])} component(s) above threshold</div>", unsafe_allow_html=True)
+            st.markdown(
+                f"<div style='font-family:JetBrains Mono,monospace;font-size:0.6rem;color:#ef4444;"
+                f"margin:8px 0 4px;text-transform:uppercase;letter-spacing:1.5px;'>"
+                f"🚩 {len(m_result['red_flags'])} component(s) above threshold</div>",
+                unsafe_allow_html=True
+            )
 
         rows = ""
         for k, v in m_result["components"].items():
@@ -1395,15 +1508,13 @@ def render_deep_research_tab(result):
               <td class="{flag_cls}">{flag_sym}</td>
               <td style="font-size:0.65rem;color:#374151;max-width:160px;">{v['note'][:60]}…</td>
             </tr>"""
-
         st.markdown(f"""
         <table class="comp-table">
           <thead><tr>
             <th>Factor</th><th>Value</th><th>Weight</th><th>Flag</th><th>Interpretation</th>
           </tr></thead>
           <tbody>{rows}</tbody>
-        </table>
-        """, unsafe_allow_html=True)
+        </table>""", unsafe_allow_html=True)
 
         if m_result["missing"]:
             st.caption(f"⚠️ Could not compute: {', '.join(m_result['missing'])} — defaulted to neutral (1.0)")
@@ -1415,7 +1526,8 @@ def render_deep_research_tab(result):
         <div class="forensic-card" style="border:1px solid rgba(239,68,68,0.15);">
           <div class="forensic-label">🔴 Altman Z-Score</div>
           <div class="forensic-score" style="color:{zc};">{z_result['score']}</div>
-          <div class="forensic-verdict" style="color:{zc};background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);">
+          <div class="forensic-verdict" style="color:{zc};background:rgba(239,68,68,0.06);
+               border:1px solid rgba(239,68,68,0.15);">
             {z_result['verdict_icon']} {z_result['interpretation']}
           </div>
           <div style="font-family:'JetBrains Mono',monospace;font-size:0.55rem;color:#374151;margin-top:8px;">
@@ -1427,16 +1539,11 @@ def render_deep_research_tab(result):
         st.plotly_chart(
             _gauge_chart(z_result["score"], zc, "Z-Score", 0, 5,
                          threshold=1.81, threshold_label="⚠ 1.81 distress zone"),
-            use_container_width=True,
-            config={"displayModeBar": False},
-            key="gauge_zscore"
+            use_container_width=True, config={"displayModeBar": False}, key="gauge_zscore"
         )
-
         st.plotly_chart(
             _component_waterfall(z_result["components"], "Weighted component contributions", zc),
-            use_container_width=True,
-            config={"displayModeBar": False},
-            key="bar_zscore"
+            use_container_width=True, config={"displayModeBar": False}, key="bar_zscore"
         )
 
         rows = ""
@@ -1449,19 +1556,20 @@ def render_deep_research_tab(result):
               <td style="font-size:0.65rem;color:#374151;">×{v['weight']}</td>
               <td style="font-size:0.65rem;color:#374151;max-width:160px;">{v['label']}</td>
             </tr>"""
-
         st.markdown(f"""
         <table class="comp-table">
           <thead><tr>
             <th>Factor</th><th>Value</th><th>Weight</th><th>What it measures</th>
           </tr></thead>
           <tbody>{rows}</tbody>
-        </table>
-        """, unsafe_allow_html=True)
+        </table>""", unsafe_allow_html=True)
 
         if z_result["is_financial"]:
-            st.info("ℹ️ Altman Z-Score was designed for manufacturing companies. Use with caution for banks/NBFCs — the leverage ratios work differently.", icon="ℹ️")
-
+            st.info(
+                "ℹ️ Altman Z-Score was designed for manufacturing companies. "
+                "Use with caution for banks/NBFCs — leverage ratios work differently.",
+                icon="ℹ️"
+            )
         if z_result["missing"]:
             st.caption(f"⚠️ Could not compute: {', '.join(z_result['missing'])} — defaulted to 0")
 
@@ -1473,26 +1581,26 @@ def render_deep_research_tab(result):
     st.markdown("""
     <div class="dr-section">
       <div class="dr-section-title" style="color:#ef4444;">
-        <span style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block;box-shadow:0 0 8px rgba(239,68,68,0.5);"></span>
-        Governance & News Intelligence
+        <span style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block;
+              box-shadow:0 0 8px rgba(239,68,68,0.5);"></span>
+        Governance &amp; News Intelligence
         <span style="margin-left:auto;font-size:0.55rem;color:#374151;text-transform:none;letter-spacing:0;">
-          Powered by Claude + Web Search
+          Powered by Claude + Web Search · Flag-driven queries
         </span>
       </div>
     """, unsafe_allow_html=True)
 
     gov_key = f"gov_{ticker}"
     if gov_key not in st.session_state:
-        with st.spinner("🔍 Scanning governance signals, SEBI notices, auditor changes…"):
-            st.session_state[gov_key] = governance_scan(name, ticker, sector)
+        with st.spinner("🔍 Scanning governance signals — using detected flags to guide searches…"):
+            # Pass rf and mf so Claude knows WHAT financial anomalies to investigate
+            st.session_state[gov_key] = governance_scan(name, ticker, sector, rf, mf)
 
     gov = st.session_state[gov_key]
 
-    # Governance score pill
-    gc = "#ef4444" if gov.get("overall_risk") == "HIGH" else \
-         "#f59e0b" if gov.get("overall_risk") == "MEDIUM" else \
-         "#22c55e" if gov.get("overall_risk") == "LOW" else "#6b7280"
-
+    gc      = "#ef4444" if gov.get("overall_risk") == "HIGH" else \
+              "#f59e0b" if gov.get("overall_risk") == "MEDIUM" else \
+              "#22c55e" if gov.get("overall_risk") == "LOW" else "#6b7280"
     g_score = gov.get("governance_score", 5)
     g_risk  = gov.get("overall_risk", "UNKNOWN")
 
@@ -1501,10 +1609,11 @@ def render_deep_research_tab(result):
         st.markdown(f"""
         <div class="forensic-card" style="border:1px solid rgba(239,68,68,0.15);">
           <div class="forensic-label">Governance Risk Score</div>
-          <div class="forensic-score" style="color:{gc};">{g_score}<span style="font-size:1rem;color:#374151;">/10</span></div>
-          <div class="forensic-verdict" style="color:{gc};background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.15);">
-            {g_risk}
+          <div class="forensic-score" style="color:{gc};">
+            {g_score}<span style="font-size:1rem;color:#374151;">/10</span>
           </div>
+          <div class="forensic-verdict" style="color:{gc};background:rgba(239,68,68,0.05);
+               border:1px solid rgba(239,68,68,0.15);">{g_risk}</div>
           <div style="font-size:0.68rem;color:#6b7280;margin-top:12px;line-height:1.5;">
             {gov.get('summary','')[:180]}
           </div>
@@ -1512,21 +1621,25 @@ def render_deep_research_tab(result):
         """, unsafe_allow_html=True)
 
     with col_g2:
-        # Render each governance category
         categories = [
-            ("🚨 Auditor Issues",    "auditor_issues",  "Auditor resignation or qualification is a severe red flag"),
-            ("⚖️ SEBI Actions",      "sebi_actions",    "Regulatory investigations or penalties"),
-            ("👤 Board Changes",     "board_changes",   "Key executive or independent director exits"),
-            ("📉 Credit Events",     "credit_events",   "Rating downgrades, defaults, covenant breaches"),
-            ("🔍 Other Flags",       "other_flags",     "Fraud allegations, litigation, pledge concerns"),
+            ("🚨 Auditor Issues",       "auditor_issues",     "Auditor resignation or qualification"),
+            ("⚖️ SEBI / Regulatory",    "sebi_actions",       "SEBI investigations or penalties"),
+            ("🏛️ Regulatory Actions",   "regulatory_actions", "RBI, IRDAI, TRAI or other regulator actions"),
+            ("👤 Board Changes",        "board_changes",      "Key executive or independent director exits"),
+            ("📉 Credit Events",        "credit_events",      "Rating downgrades, defaults, NCLT filings"),
+            ("🔍 Other Flags",          "other_flags",        "Fraud allegations, litigation, pledge concerns"),
         ]
 
         any_found = False
-        for cat_label, cat_key, cat_desc in categories:
+        for cat_label, cat_key, _ in categories:
             items = gov.get(cat_key, [])
             if items:
                 any_found = True
-                st.markdown(f"<div style='font-family:JetBrains Mono,monospace;font-size:0.6rem;color:#374151;text-transform:uppercase;letter-spacing:1.5px;margin:10px 0 5px;'>{cat_label}</div>", unsafe_allow_html=True)
+                st.markdown(
+                    f"<div style='font-family:JetBrains Mono,monospace;font-size:0.6rem;color:#374151;"
+                    f"text-transform:uppercase;letter-spacing:1.5px;margin:10px 0 5px;'>{cat_label}</div>",
+                    unsafe_allow_html=True
+                )
                 for item in items:
                     sev = item.get("severity", "MEDIUM")
                     st.markdown(f"""
@@ -1538,17 +1651,25 @@ def render_deep_research_tab(result):
                     """, unsafe_allow_html=True)
 
         if not any_found:
-            st.success("✅ No major governance red flags detected in the last 18 months.")
+            st.success("✅ No major governance red flags detected in the last 24 months.")
 
-        # Positive signals
         positives = gov.get("positive_signals", [])
         if positives:
-            st.markdown("<div style='font-family:JetBrains Mono,monospace;font-size:0.6rem;color:#374151;text-transform:uppercase;letter-spacing:1.5px;margin:12px 0 6px;'>✅ Positive Signals</div>", unsafe_allow_html=True)
+            st.markdown(
+                "<div style='font-family:JetBrains Mono,monospace;font-size:0.6rem;color:#374151;"
+                "text-transform:uppercase;letter-spacing:1.5px;margin:12px 0 6px;'>✅ Positive Signals</div>",
+                unsafe_allow_html=True
+            )
             chips = "".join(f'<span class="positive-chip">✓ {p}</span>' for p in positives[:6])
             st.markdown(f"<div>{chips}</div>", unsafe_allow_html=True)
 
         if gov.get("sources_checked"):
-            st.caption(f"Sources checked: {', '.join(gov['sources_checked'][:4])}")
+            st.caption(f"Sources checked: {', '.join(gov['sources_checked'][:5])}")
+
+    # Refresh button for governance
+    if st.button("🔄 Re-run Governance Scan", key="gov_refresh"):
+        del st.session_state[gov_key]
+        st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1558,7 +1679,8 @@ def render_deep_research_tab(result):
     st.markdown("""
     <div class="dr-section">
       <div class="dr-section-title" style="color:#60a5fa;">
-        <span style="width:7px;height:7px;border-radius:50%;background:#60a5fa;display:inline-block;box-shadow:0 0 8px rgba(96,165,250,0.5);"></span>
+        <span style="width:7px;height:7px;border-radius:50%;background:#60a5fa;display:inline-block;
+              box-shadow:0 0 8px rgba(96,165,250,0.5);"></span>
         Concall Intelligence — Management Credibility Tracker
         <span style="margin-left:auto;font-size:0.55rem;color:#374151;text-transform:none;letter-spacing:0;">
           Last 4 quarters · Powered by Claude + Web Search
@@ -1568,15 +1690,16 @@ def render_deep_research_tab(result):
 
     cc_key = f"cc_{ticker}"
     if cc_key not in st.session_state:
-        with st.spinner("📞 Analyzing last 4 earnings calls and tracking flag explanations…"):
+        with st.spinner("📞 Searching concall sources and tracking flag explanations across quarters…"):
             st.session_state[cc_key] = concall_intelligence(name, ticker, rf, mf)
 
     cc = st.session_state[cc_key]
 
-    qf = cc.get("quarters_found", 0)
+    qf       = cc.get("quarters_found", 0)
     cc_score = cc.get("credibility_score", 5)
     cc_cred  = cc.get("overall_credibility", "UNKNOWN")
-    cc_color = "#22c55e" if cc_cred == "HIGH" else "#f59e0b" if cc_cred == "MEDIUM" else \
+    cc_color = "#22c55e" if cc_cred == "HIGH" else \
+               "#f59e0b" if cc_cred == "MEDIUM" else \
                "#ef4444" if cc_cred == "LOW" else "#6b7280"
 
     col_c1, col_c2 = st.columns([1, 2])
@@ -1585,10 +1708,11 @@ def render_deep_research_tab(result):
         st.markdown(f"""
         <div class="forensic-card" style="border:1px solid rgba(96,165,250,0.15);">
           <div class="forensic-label">Management Credibility</div>
-          <div class="forensic-score" style="color:{cc_color};">{cc_score}<span style="font-size:1rem;color:#374151;">/10</span></div>
-          <div class="forensic-verdict" style="color:{cc_color};background:rgba(96,165,250,0.05);border:1px solid rgba(96,165,250,0.15);">
-            {cc_cred}
+          <div class="forensic-score" style="color:{cc_color};">
+            {cc_score}<span style="font-size:1rem;color:#374151;">/10</span>
           </div>
+          <div class="forensic-verdict" style="color:{cc_color};background:rgba(96,165,250,0.05);
+               border:1px solid rgba(96,165,250,0.15);">{cc_cred}</div>
           <div style="font-family:'JetBrains Mono',monospace;font-size:0.58rem;color:#374151;margin-top:8px;">
             {qf}/4 quarters found
           </div>
@@ -1598,31 +1722,53 @@ def render_deep_research_tab(result):
         </div>
         """, unsafe_allow_html=True)
 
-        # Concerns + positives
         concerns = cc.get("key_concerns", [])
         if concerns:
-            st.markdown("<div style='font-family:JetBrains Mono,monospace;font-size:0.58rem;color:#374151;text-transform:uppercase;letter-spacing:1.5px;margin:10px 0 4px;'>🔴 Key Concerns</div>", unsafe_allow_html=True)
+            st.markdown(
+                "<div style='font-family:JetBrains Mono,monospace;font-size:0.58rem;color:#374151;"
+                "text-transform:uppercase;letter-spacing:1.5px;margin:10px 0 4px;'>🔴 Key Concerns</div>",
+                unsafe_allow_html=True
+            )
             for c in concerns[:4]:
-                st.markdown(f"<div style='font-size:0.72rem;color:#9ca3af;padding:3px 0;'>→ {c}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size:0.72rem;color:#9ca3af;padding:3px 0;'>→ {c}</div>",
+                            unsafe_allow_html=True)
 
         cc_pos = cc.get("positive_signals", [])
         if cc_pos:
-            st.markdown("<div style='font-family:JetBrains Mono,monospace;font-size:0.58rem;color:#374151;text-transform:uppercase;letter-spacing:1.5px;margin:10px 0 4px;'>✅ Positives</div>", unsafe_allow_html=True)
+            st.markdown(
+                "<div style='font-family:JetBrains Mono,monospace;font-size:0.58rem;color:#374151;"
+                "text-transform:uppercase;letter-spacing:1.5px;margin:10px 0 4px;'>✅ Positives</div>",
+                unsafe_allow_html=True
+            )
             for p in cc_pos[:3]:
-                st.markdown(f"<div style='font-size:0.72rem;color:#4ade80;padding:3px 0;'>✓ {p}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size:0.72rem;color:#4ade80;padding:3px 0;'>✓ {p}</div>",
+                            unsafe_allow_html=True)
 
     with col_c2:
-        # Quarter cards
         quarters = cc.get("quarters_data", [])
         if quarters:
-            st.markdown("<div style='font-family:JetBrains Mono,monospace;font-size:0.6rem;color:#374151;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;'>Quarterly Commentary</div>", unsafe_allow_html=True)
+            st.markdown(
+                "<div style='font-family:JetBrains Mono,monospace;font-size:0.6rem;color:#374151;"
+                "text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;'>Quarterly Commentary</div>",
+                unsafe_allow_html=True
+            )
             for q in quarters:
-                tone = q.get("management_tone", "Neutral")
+                tone     = q.get("management_tone", "Neutral")
                 tone_cls = f"tone-{tone.replace(' ','')}"
-                themes = q.get("key_themes", [])
+                themes   = q.get("key_themes", [])
                 themes_str = " · ".join(themes[:3]) if themes else "No themes extracted"
-                cred = q.get("credibility_score", 5)
+                cred   = q.get("credibility_score", 5)
                 cred_c = "#22c55e" if cred >= 7 else "#f59e0b" if cred >= 4 else "#ef4444"
+                source = q.get("source", "")
+
+                # Red flags in call
+                rfc = q.get("red_flags_in_call", [])
+                rfc_html = ""
+                if rfc:
+                    rfc_html = "<div style='margin-top:5px;'>" + "".join(
+                        f"<div style='font-size:0.65rem;color:#f87171;padding:2px 0;'>⚠ {r}</div>"
+                        for r in rfc[:2]
+                    ) + "</div>"
 
                 st.markdown(f"""
                 <div class="quarter-card">
@@ -1636,20 +1782,36 @@ def render_deep_research_tab(result):
                     </div>
                   </div>
                   <div class="quarter-theme">{themes_str}</div>
+                  {rfc_html}
+                  {f'<div class="quarter-source">Source: {source}</div>' if source else ''}
                 </div>
                 """, unsafe_allow_html=True)
         else:
-            st.markdown('<div class="dr-empty">📞 No quarterly concall data found. Try searching on screener.in or company IR page.</div>', unsafe_allow_html=True)
+            st.markdown(
+                '<div class="dr-empty">'
+                '📞 No concall data found via web search.<br>'
+                'Try manually checking '
+                '<a href="https://www.screener.in" target="_blank" style="color:#60a5fa;">screener.in</a> '
+                'or the company IR page.'
+                '</div>',
+                unsafe_allow_html=True
+            )
 
     # ── Flag tracking grid ────────────────────────────────────
     flag_tracks = cc.get("flag_tracking", [])
     if flag_tracks:
-        st.markdown("<div style='font-family:JetBrains Mono,monospace;font-size:0.6rem;color:#374151;text-transform:uppercase;letter-spacing:1.5px;margin:1rem 0 0.7rem;border-top:1px solid #111827;padding-top:1rem;'>Red Flag → Management Explanation Tracker</div>", unsafe_allow_html=True)
+        st.markdown(
+            "<div style='font-family:JetBrains Mono,monospace;font-size:0.6rem;color:#374151;"
+            "text-transform:uppercase;letter-spacing:1.5px;margin:1rem 0 0.7rem;"
+            "border-top:1px solid #111827;padding-top:1rem;'>"
+            "Red Flag → Management Explanation Tracker</div>",
+            unsafe_allow_html=True
+        )
         for ft in flag_tracks:
-            trend = ft.get("trend", "Not Addressed")
+            trend     = ft.get("trend", "Not Addressed")
             trend_cls = f"status-{trend.replace(' ','-')}"
-            q_by_q = ft.get("q_by_q", {})
-            credible = ft.get("management_credible", True)
+            q_by_q    = ft.get("q_by_q", {})
+            credible  = ft.get("management_credible", True)
             cred_indicator = "✓ Credible" if credible else "⚠ Questionable"
             cred_color     = "#34d399" if credible else "#f59e0b"
 
@@ -1667,7 +1829,8 @@ def render_deep_research_tab(result):
               <div class="flag-track-header">
                 <div class="flag-track-name">{ft.get('flag','Unknown flag')}</div>
                 <div style="display:flex;align-items:center;gap:8px;">
-                  <span style="font-family:'JetBrains Mono',monospace;font-size:0.55rem;color:{cred_color};">{cred_indicator}</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:0.55rem;
+                        color:{cred_color};">{cred_indicator}</span>
                   <span class="flag-track-status {trend_cls}">{trend}</span>
                 </div>
               </div>
@@ -1675,6 +1838,11 @@ def render_deep_research_tab(result):
               <div class="flag-insight">💡 {ft.get('insight','')}</div>
             </div>
             """, unsafe_allow_html=True)
+
+    # Refresh button for concall
+    if st.button("🔄 Re-run Concall Analysis", key="cc_refresh"):
+        del st.session_state[cc_key]
+        st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1694,7 +1862,8 @@ def render_deep_research_tab(result):
 
     st.markdown(f"""
     <div class="verdict-card" style="background:{vd_bg};border:1px solid {vd_bd};">
-      <div style="font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:#374151;text-transform:uppercase;letter-spacing:2.5px;margin-bottom:0.4rem;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:#374151;
+           text-transform:uppercase;letter-spacing:2.5px;margin-bottom:0.4rem;">
         Final Verdict
       </div>
       <div class="verdict-word" style="color:{vd_col};">
@@ -1710,14 +1879,12 @@ def render_deep_research_tab(result):
     col_v1, col_v2 = st.columns([1, 1])
 
     with col_v1:
-        # Radar chart
         radar = _verdict_radar(verdict["score_components"])
         if radar:
             st.plotly_chart(radar, use_container_width=True,
                             config={"displayModeBar": False}, key="radar_verdict")
 
     with col_v2:
-        # Score bars
         st.markdown("<div style='padding-top:1.5rem;'>", unsafe_allow_html=True)
         for label, val, mx, color in verdict["score_components"]:
             if mx == 0:
@@ -1733,31 +1900,36 @@ def render_deep_research_tab(result):
             </div>
             """, unsafe_allow_html=True)
 
-        # Reasons
         if verdict["reasons"]:
-            st.markdown("<div style='margin-top:1rem;'>", unsafe_allow_html=True)
-            st.markdown("<div style='font-family:JetBrains Mono,monospace;font-size:0.58rem;color:#374151;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;'>Risk Drivers</div>", unsafe_allow_html=True)
+            st.markdown(
+                "<div style='margin-top:1rem;'>"
+                "<div style='font-family:JetBrains Mono,monospace;font-size:0.58rem;color:#374151;"
+                "text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;'>Risk Drivers</div>",
+                unsafe_allow_html=True
+            )
             items = "".join(f'<li class="neg">{r}</li>' for r in verdict["reasons"])
-            st.markdown(f'<ul class="reason-list">{items}</ul>', unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown(f'<ul class="reason-list">{items}</ul></div>', unsafe_allow_html=True)
 
         if verdict["positives"]:
-            st.markdown("<div style='margin-top:0.6rem;'>", unsafe_allow_html=True)
-            st.markdown("<div style='font-family:JetBrains Mono,monospace;font-size:0.58rem;color:#374151;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;'>Positive Signals</div>", unsafe_allow_html=True)
+            st.markdown(
+                "<div style='margin-top:0.6rem;'>"
+                "<div style='font-family:JetBrains Mono,monospace;font-size:0.58rem;color:#374151;"
+                "text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;'>Positive Signals</div>",
+                unsafe_allow_html=True
+            )
             items = "".join(f'<li class="pos">{p}</li>' for p in verdict["positives"])
-            st.markdown(f'<ul class="reason-list">{items}</ul>', unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown(f'<ul class="reason-list">{items}</ul></div>', unsafe_allow_html=True)
 
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # ── Disclaimer ────────────────────────────────────────────
+    # ── Disclaimer ─────────────────────────────────────────────
     st.markdown("""
     <div style="margin-top:1rem;padding:0.8rem 1rem;background:rgba(255,255,255,0.02);
          border:1px solid #111827;border-radius:10px;font-size:0.65rem;color:#374151;line-height:1.6;">
       ⚠️ <strong style="color:#4b5563;">Not investment advice.</strong>
-      Deep Research analysis uses financial models and AI-powered web search. 
-      Beneish M-Score and Altman Z-Score are <em>probabilistic</em> indicators, not definitive proof of manipulation or distress.
-      Always cross-check with official BSE/NSE filings. Consult a SEBI-registered advisor before making investment decisions.
+      Deep Research uses financial models and AI-powered web search.
+      Beneish M-Score and Altman Z-Score are <em>probabilistic</em> indicators, not proof of manipulation or distress.
+      Always cross-check with official BSE/NSE filings. Consult a SEBI-registered advisor before investing.
     </div>
     """, unsafe_allow_html=True)
 
@@ -1770,7 +1942,7 @@ def render_deep_research_selector(all_results):
     """
     Renders a company selector + the deep research panel.
     Call this inside `with tab_deep_research:` in app.py
-    
+
     all_results: list of analyse_ticker() outputs from tab_search or tab_sector
     """
     if not all_results:
@@ -1779,14 +1951,13 @@ def render_deep_research_selector(all_results):
           <div style="font-size:2rem;margin-bottom:1rem;">🔬</div>
           <div style="font-size:0.9rem;color:#4b5563;margin-bottom:0.4rem;">No companies analysed yet</div>
           <div style="font-size:0.75rem;color:#2d3a55;">
-            Go to the <strong style="color:#4b5563;">Search & Analyse</strong> tab,
+            Go to the <strong style="color:#4b5563;">Search &amp; Analyse</strong> tab,
             analyse one or more companies, then return here for Deep Research.
           </div>
         </div>
         """, unsafe_allow_html=True)
         return
 
-    # Company selector
     company_options = {
         f"{r['name']} ({r['ticker'].replace('.NS','')}) — Risk: {r['risk_score']}/10": r
         for r in all_results
@@ -1803,15 +1974,15 @@ def render_deep_research_selector(all_results):
 
     selected_result = company_options[selected_label]
 
-    # Refresh button
     col_btn, col_note = st.columns([1, 3])
     with col_btn:
-        run_btn = st.button("🔬 Run Deep Research →", type="primary",
-                            key="dr_run_btn")
+        run_btn = st.button("🔬 Run Deep Research →", type="primary", key="dr_run_btn")
     with col_note:
-        st.caption("This runs Beneish M-Score, Altman Z-Score, AI governance scan, and concall intelligence. Takes ~30–60 seconds.")
+        st.caption(
+            "Runs Beneish M-Score, Altman Z-Score, AI governance scan, and concall intelligence. "
+            "Takes ~30–60 seconds."
+        )
 
-    # Auto-run or button-triggered
     dr_key = f"dr_done_{selected_result['ticker']}"
     if run_btn or dr_key in st.session_state:
         st.session_state[dr_key] = True
