@@ -150,23 +150,23 @@ def _series_cr(series):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_company_data(ticker: str):
+    info, t = {}, None
     for attempt in range(3):
         try:
-            t = yf.Ticker(ticker)
+            t    = yf.Ticker(ticker)
             info = t.info or {}
-            if not info.get("longName") and not info.get("shortName") \
-               and not info.get("regularMarketPrice"):
-                if attempt < 2:
-                    time.sleep(1.5)
-                    continue
-                return None
-            break  # success — exit retry loop
+            if info.get("longName") or info.get("shortName") or info.get("regularMarketPrice"):
+                break
+            if attempt < 2:
+                time.sleep(1.5)
         except Exception:
             if attempt < 2:
                 time.sleep(1.5)
-                continue
-            return None
-        
+            else:
+                return None
+    if not info.get("longName") and not info.get("shortName"):
+        return None
+    try:
         raw_pnl  = t.financials
         raw_bs   = t.balance_sheet
         raw_cf   = t.cashflow
@@ -183,25 +183,25 @@ def get_company_data(ticker: str):
             "gross_profit":     _series_cr(_safe_row(raw_pnl, ["Gross Profit"])),
         }
         bs = {
-            "total_debt":     _series_cr(_safe_row(raw_bs, ["Total Debt","Long Term Debt"])),
-            "equity":         _series_cr(_safe_row(raw_bs, ["Stockholders Equity","Common Stock Equity"])),
-            "receivables":    _series_cr(_safe_row(raw_bs, ["Accounts Receivable","Net Receivables"])),
-            "inventory":      _series_cr(_safe_row(raw_bs, ["Inventory"])),
-            "total_assets":   _series_cr(_safe_row(raw_bs, ["Total Assets"])),
-            "current_assets": _series_cr(_safe_row(raw_bs, ["Current Assets"])),
-            "current_liab":   _series_cr(_safe_row(raw_bs, ["Current Liabilities"])),
-            "cash":           _series_cr(_safe_row(raw_bs, ["Cash And Cash Equivalents",
-                                         "Cash Cash Equivalents And Short Term Investments"])),
-            "goodwill":       _series_cr(_safe_row(raw_bs, ["Goodwill","Goodwill And Other Intangible Assets"])),
-            "payables":       _series_cr(_safe_row(raw_bs, ["Accounts Payable","Payables"])),
+            "total_debt":         _series_cr(_safe_row(raw_bs, ["Total Debt","Long Term Debt"])),
+            "equity":             _series_cr(_safe_row(raw_bs, ["Stockholders Equity","Common Stock Equity"])),
+            "receivables":        _series_cr(_safe_row(raw_bs, ["Accounts Receivable","Net Receivables"])),
+            "inventory":          _series_cr(_safe_row(raw_bs, ["Inventory"])),
+            "total_assets":       _series_cr(_safe_row(raw_bs, ["Total Assets"])),
+            "current_assets":     _series_cr(_safe_row(raw_bs, ["Current Assets"])),
+            "current_liab":       _series_cr(_safe_row(raw_bs, ["Current Liabilities"])),
+            "cash":               _series_cr(_safe_row(raw_bs, ["Cash And Cash Equivalents",
+                                             "Cash Cash Equivalents And Short Term Investments"])),
+            "goodwill":           _series_cr(_safe_row(raw_bs, ["Goodwill","Goodwill And Other Intangible Assets"])),
+            "payables":           _series_cr(_safe_row(raw_bs, ["Accounts Payable","Payables"])),
             "non_current_assets": _series_cr(_safe_row(raw_bs, ["Net PPE","Total Non Current Assets"])),
-            "deferred_tax":   _series_cr(_safe_row(raw_bs, ["Deferred Tax Assets","Deferred Income Tax"])),
+            "deferred_tax":       _series_cr(_safe_row(raw_bs, ["Deferred Tax Assets","Deferred Income Tax"])),
         }
         cf = {
-            "cfo":   _series_cr(_safe_row(raw_cf, ["Operating Cash Flow","Cash From Operations"])),
-            "capex": _series_cr(_safe_row(raw_cf, ["Capital Expenditure"])),
-            "fcf":   _series_cr(_safe_row(raw_cf, ["Free Cash Flow"])),
-            "investing": _series_cr(_safe_row(raw_cf, ["Investing Cash Flow","Cash From Investing Activities"])),
+            "cfo":      _series_cr(_safe_row(raw_cf, ["Operating Cash Flow","Cash From Operations"])),
+            "capex":    _series_cr(_safe_row(raw_cf, ["Capital Expenditure"])),
+            "fcf":      _series_cr(_safe_row(raw_cf, ["Free Cash Flow"])),
+            "investing":_series_cr(_safe_row(raw_cf, ["Investing Cash Flow","Cash From Investing Activities"])),
         }
 
         q4_pct = None
@@ -209,9 +209,9 @@ def get_company_data(ticker: str):
             if raw_qpnl is not None and not raw_qpnl.empty:
                 qrev_row = _safe_row(raw_qpnl, ["Total Revenue","Revenue"])
                 if qrev_row is not None and len(qrev_row) >= 4:
-                    qrev = qrev_row.sort_index(ascending=False)
-                    last4 = qrev.iloc[:4]
-                    total = last4.sum()
+                    qrev   = qrev_row.sort_index(ascending=False)
+                    last4  = qrev.iloc[:4]
+                    total  = last4.sum()
                     q4_vals = [v for d, v in last4.items()
                                if hasattr(d, 'month') and d.month in [3, 12]]
                     if total and q4_vals:
@@ -222,11 +222,11 @@ def get_company_data(ticker: str):
         return {
             "ticker":               ticker,
             "name":                 info.get("longName") or info.get("shortName") or ticker,
-            "sector":               info.get("sector","Unknown"),
-            "industry":             info.get("industry","Unknown"),
+            "sector":               info.get("sector", "Unknown"),
+            "industry":             info.get("industry", "Unknown"),
             "mcap_cr":              _to_cr(info.get("marketCap")),
-            "de_ratio":             round(info.get("debtToEquity",0)/100,2) if info.get("debtToEquity") else None,
-            "promoter_holding_pct": round(info.get("heldPercentInsiders",0)*100,1),
+            "de_ratio":             round(info.get("debtToEquity", 0) / 100, 2) if info.get("debtToEquity") else None,
+            "promoter_holding_pct": round(info.get("heldPercentInsiders", 0) * 100, 1),
             "revenue_growth_pct":   info.get("revenueGrowth"),
             "operating_margins":    info.get("operatingMargins"),
             "q4_revenue_pct":       q4_pct,
@@ -234,7 +234,6 @@ def get_company_data(ticker: str):
         }
     except Exception:
         return None
-
 
 # ============================================================
 #  SECTION 2 — ANALYSIS LAYER
