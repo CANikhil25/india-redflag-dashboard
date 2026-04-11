@@ -21,50 +21,98 @@ from datetime import datetime
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def load_nse_company_list():
-    try:
-        url = "https://archives.nseindia.com/content/equities/EQUITY_L.csv"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        resp = requests.get(url, headers=headers, timeout=10)
-        resp.raise_for_status()
-        from io import StringIO
-        df = pd.read_csv(StringIO(resp.text))
-        symbol_col = "SYMBOL"
-        name_col   = " NAME OF COMPANY" if " NAME OF COMPANY" in df.columns else "NAME OF COMPANY"
-        company_dict = {}
-        for _, row in df.iterrows():
-            sym  = str(row[symbol_col]).strip()
-            name = str(row[name_col]).strip()
-            if sym and name:
-                company_dict[f"{name}  ({sym})"] = f"{sym}.NS"
-        return company_dict
-    except Exception:
-        tickers = [
-            ("Reliance Industries","RELIANCE"),("TCS","TCS"),("Infosys","INFY"),
-            ("HDFC Bank","HDFCBANK"),("ICICI Bank","ICICIBANK"),("Wipro","WIPRO"),
-            ("Adani Enterprises","ADANIENT"),("Yes Bank","YESBANK"),("Zomato","ZOMATO"),
-            ("Paytm","PAYTM"),("Bajaj Finance","BAJFINANCE"),("ITC","ITC"),
-            ("L&T","LT"),("Sun Pharma","SUNPHARMA"),("Tata Motors","TATAMOTORS"),
-            ("ONGC","ONGC"),("Coal India","COALINDIA"),("SBI","SBIN"),
-            ("Axis Bank","AXISBANK"),("Maruti Suzuki","MARUTI"),
-            ("HCL Tech","HCLTECH"),("Tech Mahindra","TECHM"),
-            ("NTPC","NTPC"),("Power Grid","POWERGRID"),("Tata Steel","TATASTEEL"),
-            ("JSW Steel","JSWSTEEL"),("Hindalco","HINDALCO"),("Vedanta","VEDL"),
-            ("NMDC","NMDC"),("Dr Reddy's","DRREDDY"),("Cipla","CIPLA"),
-            ("Divis Labs","DIVISLAB"),("Lupin","LUPIN"),("Aurobindo Pharma","AUROPHARMA"),
-            ("Hindustan Unilever","HINDUNILVR"),("Nestle India","NESTLEIND"),
-            ("Britannia","BRITANNIA"),("Dabur","DABUR"),("Marico","MARICO"),
-            ("DLF","DLF"),("Godrej Properties","GODREJPROP"),("Prestige Estates","PRESTIGE"),
-            ("Tata Power","TATAPOWER"),("Adani Ports","ADANIPORTS"),
-            ("Bajaj Auto","BAJAJ-AUTO"),("Eicher Motors","EICHERMOT"),
-            ("Hero MotoCorp","HEROMOTOCO"),("Ashok Leyland","ASHOKLEY"),
-            ("TVS Motor","TVSMOTOR"),("Muthoot Finance","MUTHOOTFIN"),
-            ("Cholamandalam Finance","CHOLAFIN"),("Shriram Finance","SHRIRAMFIN"),
-            ("Federal Bank","FEDERALBNK"),("Bandhan Bank","BANDHANBNK"),
-            ("Kotak Mahindra Bank","KOTAKBANK"),("IndusInd Bank","INDUSINDBK"),
-            ("Tata Communications","TATACOMM"),("Adani Green","ADANIGREEN"),
-            ("JSW Energy","JSWENERGY"),("Torrent Power","TORNTPOWER"),
-        ]
-        return {f"{name}  ({sym})": f"{sym}.NS" for name, sym in tickers}
+    """
+    Tries multiple sources in order to get the full NSE equity list (~2660 companies).
+    Source 1: NSE direct (works locally, often blocked on cloud)
+    Source 2: GitHub mirror of the same CSV (reliable on cloud)
+    Source 3: Another GitHub hosted NSE list
+    Source 4: hardcoded ~60 company fallback
+    """
+    from io import StringIO
+
+    sources = [
+        # Source 1 — NSE official
+        {
+            "url": "https://archives.nseindia.com/content/equities/EQUITY_L.csv",
+            "headers": {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                              "AppleWebKit/537.36 (KHTML, like Gecko) "
+                              "Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.5",
+                "Referer": "https://www.nseindia.com/",
+            },
+        },
+        # Source 2 — GitHub mirror (punkzberryz/nse-stock-data — updated regularly)
+        {
+            "url": "https://raw.githubusercontent.com/punkzberryz/nse-stock-data/main/data/EQUITY_L.csv",
+            "headers": {"User-Agent": "Mozilla/5.0"},
+        },
+        # Source 3 — another GitHub copy
+        {
+            "url": "https://raw.githubusercontent.com/iamsmkr/til/main/nse/EQUITY_L.csv",
+            "headers": {"User-Agent": "Mozilla/5.0"},
+        },
+    ]
+
+    for src in sources:
+        try:
+            resp = requests.get(src["url"], headers=src["headers"], timeout=15)
+            resp.raise_for_status()
+            text = resp.text.strip()
+            if len(text) < 500:          # too short → likely an error page
+                continue
+            df = pd.read_csv(StringIO(text))
+            # Normalise column names (NSE CSV sometimes has a leading space)
+            df.columns = [c.strip() for c in df.columns]
+            if "SYMBOL" not in df.columns:
+                continue
+            name_col = "NAME OF COMPANY" if "NAME OF COMPANY" in df.columns else None
+            if name_col is None:
+                continue
+            company_dict = {}
+            for _, row in df.iterrows():
+                sym  = str(row["SYMBOL"]).strip()
+                name = str(row[name_col]).strip()
+                if sym and name and sym != "nan" and name != "nan":
+                    company_dict[f"{name}  ({sym})"] = f"{sym}.NS"
+            if len(company_dict) > 500:   # sanity check — real list has 2000+
+                return company_dict
+        except Exception:
+            continue
+
+    # ── Hardcoded fallback (only if ALL network sources fail) ─────────
+    tickers = [
+        ("Reliance Industries","RELIANCE"),("TCS","TCS"),("Infosys","INFY"),
+        ("HDFC Bank","HDFCBANK"),("ICICI Bank","ICICIBANK"),("Wipro","WIPRO"),
+        ("Adani Enterprises","ADANIENT"),("Yes Bank","YESBANK"),("Zomato","ZOMATO"),
+        ("Paytm","PAYTM"),("Bajaj Finance","BAJFINANCE"),("ITC","ITC"),
+        ("L&T","LT"),("Sun Pharma","SUNPHARMA"),("Tata Motors","TATAMOTORS"),
+        ("ONGC","ONGC"),("Coal India","COALINDIA"),("SBI","SBIN"),
+        ("Axis Bank","AXISBANK"),("Maruti Suzuki","MARUTI"),
+        ("HCL Tech","HCLTECH"),("Tech Mahindra","TECHM"),
+        ("NTPC","NTPC"),("Power Grid","POWERGRID"),("Tata Steel","TATASTEEL"),
+        ("JSW Steel","JSWSTEEL"),("Hindalco","HINDALCO"),("Vedanta","VEDL"),
+        ("NMDC","NMDC"),("Dr Reddy's","DRREDDY"),("Cipla","CIPLA"),
+        ("Divis Labs","DIVISLAB"),("Lupin","LUPIN"),("Aurobindo Pharma","AUROPHARMA"),
+        ("Hindustan Unilever","HINDUNILVR"),("Nestle India","NESTLEIND"),
+        ("Britannia","BRITANNIA"),("Dabur","DABUR"),("Marico","MARICO"),
+        ("DLF","DLF"),("Godrej Properties","GODREJPROP"),("Prestige Estates","PRESTIGE"),
+        ("Tata Power","TATAPOWER"),("Adani Ports","ADANIPORTS"),
+        ("Bajaj Auto","BAJAJ-AUTO"),("Eicher Motors","EICHERMOT"),
+        ("Hero MotoCorp","HEROMOTOCO"),("Ashok Leyland","ASHOKLEY"),
+        ("TVS Motor","TVSMOTOR"),("Muthoot Finance","MUTHOOTFIN"),
+        ("Cholamandalam Finance","CHOLAFIN"),("Shriram Finance","SHRIRAMFIN"),
+        ("Federal Bank","FEDERALBNK"),("Bandhan Bank","BANDHANBNK"),
+        ("Kotak Mahindra Bank","KOTAKBANK"),("IndusInd Bank","INDUSINDBK"),
+        ("Tata Communications","TATACOMM"),("Adani Green","ADANIGREEN"),
+        ("JSW Energy","JSWENERGY"),("Torrent Power","TORNTPOWER"),
+        ("Bajaj Finserv","BAJAJFINSV"),("M&M","M&M"),("HDFCLIFE","HDFCLIFE"),
+        ("SBILIFE","SBILIFE"),("ICICIPRULI","ICICIPRULI"),("Nykaa","NYKAA"),
+        ("Delhivery","DELHIVERY"),("PolicyBazaar","POLICYBZR"),
+    ]
+    return {f"{name}  ({sym})": f"{sym}.NS" for name, sym in tickers}
+
 
 
 def resolve_ticker(raw: str) -> str:
@@ -785,6 +833,8 @@ def analyse_ticker(ticker):
 with st.spinner("Loading NSE company list…"):
     ALL_COMPANIES = load_nse_company_list()
 
+_fallback_mode = len(ALL_COMPANIES) < 500
+
 st.markdown(f"""
 <div class="hero">
   <div class="hero-title">India <span>Red Flag</span> Dashboard</div>
@@ -795,6 +845,14 @@ st.markdown(f"""
     &nbsp;·&nbsp; {datetime.now().strftime('%d %b %Y, %I:%M %p')}
   </div>
 </div>""", unsafe_allow_html=True)
+
+if _fallback_mode:
+    st.warning(
+        "⚠️ Could not reach NSE or GitHub mirrors to load the full 2,660-company list. "
+        "Showing ~65 major companies. You can still type **any NSE ticker directly** "
+        "in the text box below (e.g. TATACOMM, ZOMATO) — it will resolve automatically.",
+        icon="⚠️"
+    )
 
 tab_search, tab_sector, tab_about = st.tabs(
     ["🔍  Search & Analyse", "📊  Sector Scanner", "ℹ️  About"])
