@@ -110,13 +110,20 @@ def resolve_ticker(raw: str) -> str:
     for suffix in [".NS", ".BO"]:
         symbol = raw + suffix
         try:
-            hist = yf.Ticker(symbol).history(period="5d")
+            t = yf.Ticker(symbol)
+            # fast_info is more reliable than history() for validation
+            price = t.fast_info.get("lastPrice") or t.fast_info.get("regularMarketPrice")
+            if price:
+                return symbol
+        except Exception:
+            continue
+        try:
+            hist = t.history(period="5d")
             if not hist.empty:
                 return symbol
         except Exception:
             continue
     return None
-
 
 def _safe_row(df, names):
     """Return a Series keyed by 4-digit year strings (ascending), or None."""
@@ -143,11 +150,18 @@ def _series_cr(series):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_company_data(ticker: str):
-    try:
-        t    = yf.Ticker(ticker)
-        info = t.info or {}
-        if not info.get("longName") and not info.get("shortName"):
-            return None
+    for attempt in range(3):  # retry up to 3 times
+        try:
+            t = yf.Ticker(ticker)
+            info = t.info or {}
+            # Yahoo sometimes returns stub dict with just "trailingPegRatio"
+            if not info.get("longName") and not info.get("shortName") \
+               and not info.get("regularMarketPrice"):
+                if attempt < 2:
+                    time.sleep(1.5)
+                    continue
+                return None
+        
         raw_pnl  = t.financials
         raw_bs   = t.balance_sheet
         raw_cf   = t.cashflow
@@ -1624,8 +1638,11 @@ with tab_search:
             if resolved:
                 tickers.append(resolved)
             else:
-                st.warning(f"⚠️ Could not resolve ticker: **{raw}**")
-    tickers = list(dict.fromkeys(tickers))
+                st.error(
+        f"❌ Could not fetch data for **{raw}**. "
+        f"Yahoo Finance may be rate-limiting. Try again in 30 seconds, "
+        f"or verify the ticker at nseindia.com"
+    )
 
     if tickers and st.button(f"Analyse {len(tickers)} company/companies →", type="primary"):
         results = []
