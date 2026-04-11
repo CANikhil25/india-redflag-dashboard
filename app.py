@@ -1038,7 +1038,7 @@ def _manip_label(score):
 
 
 def risk_gauge(score, color, title_text):
-    """Improved gauge with cleaner layout and animated needle feel."""
+    """Gauge using only properties valid across all recent Plotly versions."""
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=score,
@@ -1048,11 +1048,9 @@ def risk_gauge(score, color, title_text):
         gauge={
             'axis': {
                 'range': [0, 10],
-                'tickvals': [0, 2, 4, 6, 8, 10],
-                'ticktext': ['0', '2', '4', '6', '8', '10'],
+                'tickwidth': 1,
                 'tickcolor': '#1f2d47',
-                'tickfont': {'color': '#374151', 'size': 8, 'family': 'JetBrains Mono'},
-                'linecolor': '#1f2d47',
+                'tickfont': {'color': '#374151', 'size': 8},
             },
             'bar': {'color': color, 'thickness': 0.22},
             'bgcolor': '#080b14',
