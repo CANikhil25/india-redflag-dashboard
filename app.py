@@ -584,7 +584,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
     menu_items={"About": "Forensic analysis tool for NSE-listed companies. Not investment advice."}
 )
-
+if "all_results_store" not in st.session_state:
+    st.session_state["all_results_store"] = []
+    
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
@@ -1583,9 +1585,12 @@ if _fallback_mode:
         icon="⚠️"
     )
 
-tab_search, tab_sector, tab_about = st.tabs(
-    ["🔍  Search & Analyse", "📊  Sector Scanner", "ℹ️  About"])
-
+tab_search, tab_sector, tab_deep, tab_about = st.tabs([
+    "🔍  Search & Analyse",
+    "📊  Sector Scanner",
+    "🔬  Deep Research",
+    "ℹ️  About",
+])
 
 # ═══════════════════════════════════════════════════════════════════
 #  TAB 1 — SEARCH & ANALYSE
@@ -1639,6 +1644,7 @@ with tab_search:
             st.stop()
 
         results.sort(key=lambda x: x["risk_score"] + x["manip_score"], reverse=True)
+        st.session_state["all_results_store"] = results
 
         # Summary cards
         st.markdown('<div class="sec-head">Risk Summary</div>', unsafe_allow_html=True)
@@ -1764,6 +1770,7 @@ with tab_sector:
             st.stop()
 
         results.sort(key=lambda x: x["risk_score"] + x["manip_score"], reverse=True)
+        st.session_state["all_results_store"] = results
 
         # Sector heatmap — quick overview table
         st.markdown('<div class="sec-head">Sector Overview</div>', unsafe_allow_html=True)
@@ -1824,6 +1831,9 @@ with tab_sector:
 # ═══════════════════════════════════════════════════════════════════
 #  TAB 3 — ABOUT
 # ═══════════════════════════════════════════════════════════════════
+with tab_deep:
+    render_deep_research_selector(st.session_state.get("all_results_store", []))
+
 with tab_about:
     st.markdown("""
     <div style="max-width:720px;color:#6b7280;line-height:1.85;font-size:0.87rem;">
