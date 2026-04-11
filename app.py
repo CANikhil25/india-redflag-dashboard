@@ -18,6 +18,7 @@ import io
 import time
 import requests
 from deep_research_tab import render_deep_research_selector
+from datetime import datetime
 
 # ============================================================
 #  SECTION 1 — DATA LAYER
