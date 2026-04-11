@@ -118,11 +118,17 @@ def resolve_ticker(raw: str) -> str:
 
 
 def _safe_row(df, names):
+    """Return a Series keyed by 4-digit year strings (ascending), or None."""
     if df is None or df.empty: return None
     for name in names:
         if name in df.index:
             row = pd.to_numeric(df.loc[name], errors="coerce").dropna()
             if not row.empty:
+                # Normalise index to plain 4-digit year strings
+                new_idx = [str(idx)[:4] for idx in row.index]
+                row.index = new_idx
+                # Drop duplicate years, keep last (most recent filing)
+                row = row[~row.index.duplicated(keep="last")]
                 return row.sort_index()
     return None
 
@@ -1037,7 +1043,7 @@ def risk_gauge(score, color, title_text):
         mode="gauge+number",
         value=score,
         title={'text': title_text, 'font': {'size': 11, 'color': '#6b7280', 'family': 'Space Grotesk'}},
-        number={'font': {'size': 32, 'color': color, 'family': 'Space Grotesk', 'weight': 700}, 'suffix': '/10'},
+        number={'font': {'size': 32, 'color': color, 'family': 'Space Grotesk'}, 'suffix': '/10'},
         domain={'x': [0, 1], 'y': [0, 1]},
         gauge={
             'axis': {
@@ -1191,6 +1197,7 @@ def make_trend_bar(series, title, hl_type, show_trendline=True):
         font=dict(color='#6b7280', family='Space Grotesk'),
         annotations=annotations,
         xaxis=dict(
+            type='category',
             tickfont=dict(color='#4b5563', size=9, family='JetBrains Mono'),
             showgrid=False,
             tickangle=0,
@@ -1283,6 +1290,7 @@ def make_dual_trend_chart(series1, label1, series2, label2, title):
             xanchor='center', x=0.5,
         ),
         xaxis=dict(
+            type='category',
             tickfont=dict(color='#4b5563', size=9, family='JetBrains Mono'),
             showgrid=False,
         ),
@@ -1334,10 +1342,15 @@ PANEL_TITLE = {"BS":"Balance Sheet","PL":"P & L","CF":"Cash Flow"}
 
 
 def _get_val(data, panel_key, row_key, year_str):
+    """Look up a single year value; index is already normalised to 4-char strings."""
     src = data.get(PANEL_SRC[panel_key], {})
     s   = src.get(row_key)
     if s is None: return None
     s2  = s.dropna()
+    # Direct lookup first (index already normalised)
+    if year_str in s2.index:
+        return float(s2[year_str])
+    # Fallback: scan by str prefix (handles any non-normalised edge cases)
     for idx in s2.index:
         if str(idx)[:4] == year_str:
             return float(s2[idx])
