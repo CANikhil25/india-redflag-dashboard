@@ -17,7 +17,7 @@ from plotly.subplots import make_subplots
 import io
 import time
 import requests
-from datetime import datetime
+from deep_research_tab import render_deep_research_selector
 
 # ============================================================
 #  SECTION 1 — DATA LAYER
