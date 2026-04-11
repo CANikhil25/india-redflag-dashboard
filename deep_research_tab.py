@@ -1035,6 +1035,7 @@ def render_deep_research_tab(result):
             "Add at least one to `.streamlit/secrets.toml`:\n"
             "```toml\n"
             "GROQ_API_KEY   = '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"
+            
             "GEMINI_API_KEY = 'AIzaSyDhdKSmSOCqJ8hVvQHr-FwTXf5eRkjf9gg"
             "```\n"
             "**Free keys:**\n"
