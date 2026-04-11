@@ -150,17 +150,22 @@ def _series_cr(series):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_company_data(ticker: str):
-    for attempt in range(3):  # retry up to 3 times
+    for attempt in range(3):
         try:
             t = yf.Ticker(ticker)
             info = t.info or {}
-            # Yahoo sometimes returns stub dict with just "trailingPegRatio"
             if not info.get("longName") and not info.get("shortName") \
                and not info.get("regularMarketPrice"):
                 if attempt < 2:
                     time.sleep(1.5)
                     continue
                 return None
+            break  # success — exit retry loop
+        except Exception:
+            if attempt < 2:
+                time.sleep(1.5)
+                continue
+            return None
         
         raw_pnl  = t.financials
         raw_bs   = t.balance_sheet
