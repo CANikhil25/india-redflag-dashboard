@@ -709,7 +709,11 @@ def render_stmt_panel(panel_key, data, hl_labels, hl_type_map, n_years=3):
     st.markdown(html, unsafe_allow_html=True)
 
 
-def render_flag_with_evidence(flag_tuple, data):
+def render_flag_with_evidence(flag_tuple, data, unique_key: str):
+    """
+    unique_key must be globally unique across the entire page render
+    (e.g. "{ticker}_{flag_index}") to avoid StreamlitDuplicateElementId.
+    """
     sev, title, detail = flag_tuple[0], flag_tuple[1], flag_tuple[2]
     evidence = flag_tuple[3] if len(flag_tuple) > 3 else []
 
@@ -752,7 +756,7 @@ def render_flag_with_evidence(flag_tuple, data):
             info = panels_info.get(pk, {"labels":set(),"type_map":{}})
             render_stmt_panel(pk, data, info["labels"], info["type_map"])
 
-    # Mini bar charts for each highlighted series
+    # Mini bar charts — each gets a fully unique key
     ev_series = [e for e in evidence if e.get("series") is not None and
                  not e["series"].dropna().empty]
     if ev_series:
@@ -760,8 +764,10 @@ def render_flag_with_evidence(flag_tuple, data):
         for i, ev in enumerate(ev_series[:3]):
             fig = make_mini_bar(ev["series"], ev["label"], ev["highlight"])
             if fig:
+                chart_key = f"chart_{unique_key}_{i}_{ev['label'].replace(' ','_')}"
                 chart_cols[i].plotly_chart(fig, use_container_width=True,
-                                           config={"displayModeBar":False})
+                                           config={"displayModeBar":False},
+                                           key=chart_key)
 
     st.markdown("<div style='height:2px'></div>", unsafe_allow_html=True)
 
@@ -870,15 +876,16 @@ with tab_search:
                     st.metric("Sector", r["sector"])
                 with c3:
                     st.plotly_chart(risk_gauge(r["score"]), use_container_width=True,
-                                    config={"displayModeBar":False})
+                                    config={"displayModeBar":False},
+                                    key=f"gauge_search_{r['ticker']}")
 
                 st.markdown('<div class="section-heading">Red Flags with Financial Evidence</div>',
                             unsafe_allow_html=True)
                 if not r["flags"]:
                     st.success("✅ No red flags triggered for this company.")
                 else:
-                    for flag in r["flags"]:
-                        render_flag_with_evidence(flag, r)
+                    for fi, flag in enumerate(r["flags"]):
+                        render_flag_with_evidence(flag, r, unique_key=f"search_{r['ticker']}_{fi}")
 
         df_report = pd.DataFrame([{
             "Ticker":     r["ticker"].replace(".NS",""),
@@ -953,8 +960,8 @@ with tab_sector:
                 if not r["flags"]:
                     st.success("✅ No major red flags detected.")
                 else:
-                    for flag in r["flags"]:
-                        render_flag_with_evidence(flag, r)
+                    for fi, flag in enumerate(r["flags"]):
+                        render_flag_with_evidence(flag, r, unique_key=f"sector_{r['ticker']}_{fi}")
 
 
 # ═══════════════════════════════════════════════════════════════════
