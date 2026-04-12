@@ -1465,6 +1465,26 @@ def render_about():
     """, unsafe_allow_html=True)
 
 
+
+# ═══════════════════════════════════════════════════════════════
+#  SHARED WORK-PAGE HEADER
+# ═══════════════════════════════════════════════════════════════
+def _work_header(subtitle, back_key):
+    col_logo, col_label, col_back = st.columns([3, 3, 1])
+    with col_logo:
+        st.markdown(f'<div class="work-topbar"><div class="work-logo">Financial <span>Shenanigans</span></div></div>',
+                    unsafe_allow_html=True)
+    with col_label:
+        st.markdown(f'<div style="padding-top:1rem;"><span class="work-page-label">{subtitle}</span></div>',
+                    unsafe_allow_html=True)
+    with col_back:
+        st.markdown("<div style='padding-top:0.6rem;'>", unsafe_allow_html=True)
+        if st.button("← Back", key=back_key, use_container_width=True):
+            st.session_state["current_page"] = "nav"
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
 # ═══════════════════════════════════════════════════════════════
 #  PAGE 1 — LANDING
 # ═══════════════════════════════════════════════════════════════
@@ -1650,26 +1670,6 @@ elif st.session_state["current_page"] == "nav":
 
     st.markdown("<div style='height:1rem;'></div>", unsafe_allow_html=True)
     render_about()
-
-
-# ═══════════════════════════════════════════════════════════════
-#  SHARED WORK-PAGE HEADER
-# ═══════════════════════════════════════════════════════════════
-def _work_header(subtitle, back_key):
-    col_logo, col_label, col_back = st.columns([3, 3, 1])
-    with col_logo:
-        st.markdown(f'<div class="work-topbar"><div class="work-logo">Financial <span>Shenanigans</span></div></div>',
-                    unsafe_allow_html=True)
-    with col_label:
-        st.markdown(f'<div style="padding-top:1rem;"><span class="work-page-label">{subtitle}</span></div>',
-                    unsafe_allow_html=True)
-    with col_back:
-        st.markdown("<div style='padding-top:0.6rem;'>", unsafe_allow_html=True)
-        if st.button("← Back", key=back_key, use_container_width=True):
-            st.session_state["current_page"] = "nav"
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-
 
 # ═══════════════════════════════════════════════════════════════
 #  PAGE 3a — SEARCH & ANALYSE
