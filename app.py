@@ -27,6 +27,44 @@ from datetime import datetime
 @st.cache_data(ttl=86400, show_spinner=False)
 def load_nse_company_list():
     from io import StringIO
+    import os
+
+    def _parse_csv_text(text):
+        """Parse raw CSV text into {display_name: ticker} dict."""
+        df = pd.read_csv(StringIO(text))
+        df.columns = [c.strip() for c in df.columns]
+        if "SYMBOL" not in df.columns:
+            return None
+        name_col = "NAME OF COMPANY" if "NAME OF COMPANY" in df.columns else None
+        if name_col is None:
+            return None
+        company_dict = {}
+        for _, row in df.iterrows():
+            sym  = str(row["SYMBOL"]).strip()
+            name = str(row[name_col]).strip()
+            if sym and name and sym != "nan" and name != "nan":
+                company_dict[f"{name}  ({sym})"] = f"{sym}.NS"
+        return company_dict if len(company_dict) > 500 else None
+
+    # ── PRIORITY 1: Local CSV file (most reliable) ──────────────────
+    # Place EQUITY_L.csv in the same folder as app.py
+    local_paths = [
+        "EQUITY_L.csv",          # same folder as app.py
+        "./EQUITY_L.csv",        # explicit current directory
+        "data/EQUITY_L.csv",     # if you put it in a data/ subfolder
+    ]
+    for path in local_paths:
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                    text = f.read().strip()
+                result = _parse_csv_text(text)
+                if result:
+                    return result   # ✅ loaded from local file
+            except Exception:
+                continue
+
+    # ── PRIORITY 2: Network sources (tried in order) ─────────────────
     sources = [
         {
             "url": "https://archives.nseindia.com/content/equities/EQUITY_L.csv",
@@ -47,7 +85,21 @@ def load_nse_company_list():
             "url": "https://raw.githubusercontent.com/iamsmkr/til/main/nse/EQUITY_L.csv",
             "headers": {"User-Agent": "Mozilla/5.0"},
         },
+        {
+            "url": "https://raw.githubusercontent.com/harshildarji/NSE-Stocks/master/EQUITY_L.csv",
+            "headers": {"User-Agent": "Mozilla/5.0"},
+        },
+        {
+            "url": "https://www1.nseindia.com/content/equities/EQUITY_L.csv",
+            "headers": {
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                              "AppleWebKit/537.36 (KHTML, like Gecko) "
+                              "Chrome/119.0.0.0 Safari/537.36",
+                "Referer": "https://www1.nseindia.com/",
+            },
+        },
     ]
+
     for src in sources:
         try:
             resp = requests.get(src["url"], headers=src["headers"], timeout=15)
@@ -55,24 +107,13 @@ def load_nse_company_list():
             text = resp.text.strip()
             if len(text) < 500:
                 continue
-            df = pd.read_csv(StringIO(text))
-            df.columns = [c.strip() for c in df.columns]
-            if "SYMBOL" not in df.columns:
-                continue
-            name_col = "NAME OF COMPANY" if "NAME OF COMPANY" in df.columns else None
-            if name_col is None:
-                continue
-            company_dict = {}
-            for _, row in df.iterrows():
-                sym  = str(row["SYMBOL"]).strip()
-                name = str(row[name_col]).strip()
-                if sym and name and sym != "nan" and name != "nan":
-                    company_dict[f"{name}  ({sym})"] = f"{sym}.NS"
-            if len(company_dict) > 500:
-                return company_dict
+            result = _parse_csv_text(text)
+            if result:
+                return result
         except Exception:
             continue
 
+    # ── PRIORITY 3: Hardcoded fallback (~65 major companies) ─────────
     tickers = [
         ("Reliance Industries","RELIANCE"),("TCS","TCS"),("Infosys","INFY"),
         ("HDFC Bank","HDFCBANK"),("ICICI Bank","ICICIBANK"),("Wipro","WIPRO"),
