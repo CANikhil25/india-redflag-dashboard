@@ -659,348 +659,544 @@ def run_all_checks(data):
     return risk_flags, manip_flags, risk_score, manip_score
 
 
+"""
+UI PATCH — paste this into app.py, replacing SECTION 3 (UI LAYER) onwards.
+All data/analysis logic (Sections 1 & 2) is unchanged.
+"""
+
 # ============================================================
-#  SECTION 3 — UI LAYER
+#  SECTION 3 — UI LAYER  (New Landing + Navigation)
 # ============================================================
 
 st.set_page_config(
-    page_title="India Red Flag Dashboard",
+    page_title="Financial Shenanigans",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="collapsed",
     menu_items={"About": "Forensic analysis tool for NSE-listed companies. Not investment advice."}
 )
+
 if "all_results_store" not in st.session_state:
     st.session_state["all_results_store"] = []
-    
+if "current_page" not in st.session_state:
+    st.session_state["current_page"] = "landing"
+
+# ── GLOBAL STYLES ─────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-*, *::before, *::after { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body, .stApp {
-    background: #080b14 !important;
-    color: #dde1ec !important;
-    font-family: 'Space Grotesk', sans-serif !important;
+    background: #04060c !important;
+    color: #c8cdd8 !important;
+    font-family: 'DM Sans', sans-serif !important;
+    scroll-behavior: smooth !important;
 }
 
-/* ── SCROLLBAR ── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: #0d1120; }
-::-webkit-scrollbar-thumb { background: #1e2d54; border-radius: 3px; }
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #1c2640; border-radius: 2px; }
 
-section[data-testid="stSidebar"], .block-container {
+.block-container {
     background: transparent !important;
-    padding-top: 1.2rem !important;
-    max-width: 1400px !important;
+    padding: 0 !important;
+    max-width: 100% !important;
 }
 
-/* ── HERO HEADER ── */
-.hero {
-    background: linear-gradient(135deg, #0a1628 0%, #080b14 55%, #0d0b1a 100%);
-    border: 1px solid #162040;
-    border-radius: 20px;
-    padding: 2.2rem 2.8rem;
-    margin-bottom: 2rem;
+/* ── PAGE TRANSITIONS ── */
+.page-section {
+    min-height: 100vh;
+    position: relative;
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+                transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── LANDING PAGE ── */
+.landing-wrap {
+    min-height: 100vh;
+    background: #04060c;
+    display: flex;
+    flex-direction: column;
     position: relative;
     overflow: hidden;
 }
-.hero::before {
-    content: '';
-    position: absolute;
-    top: -80px; right: -80px;
-    width: 280px; height: 280px;
-    background: radial-gradient(circle, rgba(220,38,38,0.12) 0%, transparent 65%);
-    border-radius: 50%;
+
+/* Animated grid background */
+.landing-grid {
+    position: fixed;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(220,38,38,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(220,38,38,0.04) 1px, transparent 1px);
+    background-size: 60px 60px;
+    animation: gridDrift 25s linear infinite;
+    pointer-events: none;
+    z-index: 0;
 }
-.hero::after {
-    content: '';
-    position: absolute;
-    bottom: -60px; left: 20%;
-    width: 180px; height: 180px;
-    background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 65%);
-    border-radius: 50%;
+@keyframes gridDrift {
+    0%   { background-position: 0 0; }
+    100% { background-position: 60px 60px; }
 }
-.hero-eyebrow {
+
+/* Radial glow spots */
+.glow-red {
+    position: fixed;
+    top: -15vh; right: -10vw;
+    width: 55vw; height: 55vw;
+    background: radial-gradient(circle, rgba(220,38,38,0.10) 0%, transparent 60%);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+    animation: breathe 8s ease-in-out infinite;
+}
+.glow-purple {
+    position: fixed;
+    bottom: -10vh; left: -5vw;
+    width: 45vw; height: 45vw;
+    background: radial-gradient(circle, rgba(99,102,241,0.07) 0%, transparent 60%);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+    animation: breathe 11s ease-in-out infinite reverse;
+}
+@keyframes breathe {
+    0%,100% { transform: scale(1); opacity: 1; }
+    50%      { transform: scale(1.08); opacity: 0.7; }
+}
+
+/* ── HERO CONTENT ── */
+.hero-content {
+    position: relative;
+    z-index: 2;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 9vh 3rem 0;
+}
+
+.eyebrow-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 1.8rem;
+    animation: fadeSlideIn 0.8s ease both;
+}
+.eyebrow-line {
+    width: 32px; height: 1px;
+    background: linear-gradient(90deg, #dc2626, transparent);
+}
+.eyebrow-text {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.65rem;
     color: #dc2626;
-    letter-spacing: 3px;
+    letter-spacing: 3.5px;
     text-transform: uppercase;
-    margin-bottom: 0.6rem;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.hero-eyebrow::before {
-    content: '';
-    display: inline-block;
-    width: 22px; height: 1px;
-    background: #dc2626;
-    opacity: 0.6;
-}
-.hero-title {
-    font-size: 2.2rem;
-    font-weight: 700;
-    letter-spacing: -1px;
-    color: #f0f2f8;
-    line-height: 1.15;
-    margin-bottom: 0.5rem;
-}
-.hero-title span.accent { color: #ef4444; }
-.hero-title span.dim { color: #4b5563; }
-.hero-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 1rem;
-    align-items: center;
-}
-.hero-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
-    color: #6b7280;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.62rem;
-    padding: 4px 10px;
-    border-radius: 6px;
-    letter-spacing: 0.5px;
-}
-.hero-chip.live {
-    border-color: rgba(34,197,94,0.3);
-    color: #4ade80;
-    background: rgba(34,197,94,0.05);
-}
-.hero-chip.live::before {
-    content: '';
-    width: 5px; height: 5px;
-    border-radius: 50%;
-    background: #22c55e;
-    animation: pulse-dot 2s infinite;
-}
-@keyframes pulse-dot {
-    0%,100% { opacity:1; }
-    50% { opacity: 0.3; }
 }
 
-/* ── SEARCH PANEL ── */
-.search-panel {
-    background: #0d1120;
-    border: 1px solid #1a2540;
-    border-radius: 16px;
-    padding: 1.8rem 2rem;
-    margin-bottom: 1.6rem;
+.hero-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(3.5rem, 7vw, 6.5rem);
+    line-height: 1.05;
+    color: #f0f2f8;
+    letter-spacing: -1.5px;
+    margin-bottom: 0.2rem;
+    animation: fadeSlideIn 0.9s 0.1s ease both;
 }
-.panel-label {
+.hero-title em {
+    font-style: italic;
+    color: #ef4444;
+}
+.hero-title .dim { color: #1e2d4a; }
+
+.hero-subtitle {
+    font-size: 1.05rem;
+    color: #4b5e7a;
+    max-width: 540px;
+    line-height: 1.75;
+    margin: 1.4rem 0 2.8rem;
+    font-weight: 300;
+    animation: fadeSlideIn 1s 0.2s ease both;
+}
+
+.hero-cta-row {
+    display: flex;
+    align-items: center;
+    gap: 1.2rem;
+    margin-bottom: 4rem;
+    animation: fadeSlideIn 1s 0.3s ease both;
+}
+
+/* Ticker strip */
+.ticker-strip {
+    position: relative;
+    z-index: 2;
+    border-top: 1px solid #0d1726;
+    border-bottom: 1px solid #0d1726;
+    background: rgba(4,6,12,0.8);
+    backdrop-filter: blur(10px);
+    overflow: hidden;
+    padding: 0.7rem 0;
+    margin-top: auto;
+}
+.ticker-inner {
+    display: flex;
+    gap: 3rem;
+    animation: tickerScroll 30s linear infinite;
+    white-space: nowrap;
+}
+@keyframes tickerScroll {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+}
+.ticker-item {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    color: #2d3a55;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.ticker-dot { width: 4px; height: 4px; border-radius: 50%; background: #dc2626; }
+
+/* ── STAT STRIP ── */
+.stat-strip {
+    position: relative;
+    z-index: 2;
+    max-width: 1100px;
+    margin: 0 auto 0;
+    padding: 3.5rem 3rem;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: #0d1726;
+    border: 1px solid #0d1726;
+    border-radius: 16px;
+    animation: fadeSlideIn 1.1s 0.4s ease both;
+}
+.stat-cell {
+    background: #04060c;
+    padding: 1.6rem 1.8rem;
+    position: relative;
+}
+.stat-cell:first-child { border-radius: 15px 0 0 15px; }
+.stat-cell:last-child  { border-radius: 0 15px 15px 0; }
+.stat-num {
+    font-family: 'DM Serif Display', serif;
+    font-size: 2.4rem;
+    color: #f0f2f8;
+    letter-spacing: -1px;
+    line-height: 1;
+    margin-bottom: 0.3rem;
+}
+.stat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.58rem;
+    color: #2d3a55;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+/* ── SCROLL INDICATOR ── */
+.scroll-hint {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    padding: 2.5rem;
+    animation: fadeSlideIn 1.2s 0.6s ease both;
+}
+.scroll-caret {
+    width: 28px; height: 28px;
+    border: 1px solid #1c2640;
+    border-radius: 50%;
+    margin: 0 auto;
+    display: flex; align-items: center; justify-content: center;
+    animation: caretBounce 2s ease-in-out infinite;
+    cursor: pointer;
+}
+.scroll-caret svg { width: 12px; height: 12px; fill: none; stroke: #2d3a55; stroke-width: 1.5; }
+@keyframes caretBounce {
+    0%,100% { transform: translateY(0); opacity: 0.5; }
+    50%      { transform: translateY(5px); opacity: 1; }
+}
+
+/* ── NAVIGATION PAGE (Feature Cards) ── */
+.nav-page {
+    min-height: 100vh;
+    background: #04060c;
+    position: relative;
+    overflow: hidden;
+}
+.nav-top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.6rem 3rem;
+    border-bottom: 1px solid #0d1726;
+    position: sticky;
+    top: 0;
+    background: rgba(4,6,12,0.92);
+    backdrop-filter: blur(12px);
+    z-index: 100;
+}
+.nav-logo {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.1rem;
+    color: #f0f2f8;
+    letter-spacing: -0.3px;
+    cursor: pointer;
+}
+.nav-logo em { color: #ef4444; font-style: italic; }
+
+.nav-back-btn {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.62rem;
-    color: #4b5563;
+    color: #2d3a55;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border: 1px solid #0d1726;
+    border-radius: 8px;
+    background: transparent;
+    transition: all 0.2s;
+}
+.nav-back-btn:hover { border-color: #1c2640; color: #6b7280; }
+
+.nav-hero-text {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 5rem 3rem 2.5rem;
+    animation: fadeSlideIn 0.6s ease both;
+}
+.nav-section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    color: #2d3a55;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    margin-bottom: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.nav-section-label::before { content: ''; width: 20px; height: 1px; background: #2d3a55; }
+.nav-heading {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(2rem, 4vw, 3.2rem);
+    color: #f0f2f8;
+    letter-spacing: -0.8px;
+    line-height: 1.1;
+    margin-bottom: 1rem;
+}
+.nav-heading em { color: #ef4444; font-style: italic; }
+.nav-subtext {
+    font-size: 0.9rem;
+    color: #374151;
+    font-weight: 300;
+    max-width: 500px;
+    line-height: 1.7;
+}
+
+/* ── FEATURE CARDS ── */
+.feature-grid {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 3rem 6rem;
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr;
+    gap: 14px;
+    animation: fadeSlideIn 0.7s 0.15s ease both;
+}
+
+.feat-card {
+    border: 1px solid #0d1726;
+    border-radius: 18px;
+    padding: 2rem 2rem 2.4rem;
+    background: #060a14;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.25s, transform 0.25s, background 0.25s;
+}
+.feat-card:hover {
+    border-color: #1c2640;
+    transform: translateY(-4px);
+    background: #080c18;
+}
+.feat-card.primary { background: #060a14; }
+.feat-card.primary:hover { border-color: rgba(220,38,38,0.3); }
+
+.feat-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(220,38,38,0.15), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+.feat-card:hover::after { opacity: 1; }
+
+.feat-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.55rem;
+    color: #1c2640;
+    letter-spacing: 2px;
+    margin-bottom: 2rem;
+}
+.feat-icon {
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 1.4rem;
+    font-size: 1.1rem;
+}
+.feat-icon.red    { background: rgba(220,38,38,0.1); }
+.feat-icon.purple { background: rgba(139,92,246,0.1); }
+.feat-icon.blue   { background: rgba(59,130,246,0.1); }
+
+.feat-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.35rem;
+    color: #e5e7eb;
+    letter-spacing: -0.3px;
+    line-height: 1.25;
+    margin-bottom: 0.7rem;
+}
+.feat-desc {
+    font-size: 0.78rem;
+    color: #2d3a55;
+    line-height: 1.7;
+    font-weight: 300;
+    margin-bottom: 1.8rem;
+}
+.feat-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 1.6rem;
+}
+.feat-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.53rem;
+    color: #1c2640;
+    border: 1px solid #0d1726;
+    padding: 3px 9px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+}
+.feat-arrow {
+    width: 32px; height: 32px;
+    border: 1px solid #0d1726;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.2s, transform 0.2s;
+}
+.feat-card:hover .feat-arrow { border-color: #dc2626; transform: translateX(3px); }
+.feat-arrow svg { width: 12px; height: 12px; fill: none; stroke: #374151; stroke-width: 1.5; }
+
+/* ── ABOUT STRIP ── */
+.about-strip {
+    border-top: 1px solid #0d1726;
+    padding: 3.5rem 3rem;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+.about-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 2rem;
+}
+.about-col-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.58rem;
+    color: #1c2640;
     text-transform: uppercase;
     letter-spacing: 2px;
     margin-bottom: 0.8rem;
-}
-
-/* ── DUAL SCORE CARDS ── */
-.dual-score-wrap { display: flex; gap: 14px; margin-bottom: 1.2rem; }
-
-.score-card {
-    flex: 1;
-    background: #0d1120;
-    border-radius: 16px;
-    padding: 1.4rem 1.2rem;
-    text-align: center;
-    position: relative;
-    overflow: hidden;
-    transition: transform 0.2s;
-}
-.score-card:hover { transform: translateY(-3px); }
-.score-card.risk  { border: 1px solid rgba(220,38,38,0.2); }
-.score-card.manip { border: 1px solid rgba(139,92,246,0.2); }
-.score-card.risk::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, transparent, rgba(220,38,38,0.6), transparent);
-}
-.score-card.manip::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, transparent, rgba(139,92,246,0.6), transparent);
-}
-.score-type {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.58rem;
-    text-transform: uppercase;
-    letter-spacing: 2.5px;
-    margin-bottom: 0.4rem;
-}
-.score-type.risk  { color: #ef4444; }
-.score-type.manip { color: #a78bfa; }
-.score-company { font-size: 0.75rem; font-weight: 500; color: #9ca3af; margin: 0.2rem 0 0.5rem; line-height: 1.3; }
-.score-ticker { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: #374151; }
-.score-number {
-    font-size: 3rem;
-    font-weight: 700;
-    line-height: 1;
-    margin: 0.3rem 0;
-    letter-spacing: -2px;
-}
-.score-denom { font-size: 1rem; color: #374151; font-weight: 400; letter-spacing: 0; }
-.score-verdict {
-    display: inline-block;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.58rem;
-    font-weight: 600;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    padding: 4px 14px;
-    border-radius: 20px;
-    margin-top: 0.4rem;
-}
-.score-flags { font-size: 0.65rem; color: #374151; margin-top: 0.6rem; }
-
-/* ── FLAG BUCKET HEADERS ── */
-.bucket-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 2.5px;
-    margin: 1.4rem 0 0.8rem;
     padding-bottom: 0.6rem;
-    border-bottom: 1px solid #111827;
-}
-.bucket-header.risk  { color: #ef4444; }
-.bucket-header.manip { color: #a78bfa; }
-.b-dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-.b-dot.risk  { background: #ef4444; box-shadow: 0 0 8px rgba(239,68,68,0.5); }
-.b-dot.manip { background: #a78bfa; box-shadow: 0 0 8px rgba(167,139,250,0.5); }
-
-/* ── FLAG CARDS ── */
-.flag-card {
-    border-radius: 12px;
-    padding: 1rem 1.15rem;
-    margin-bottom: 0.6rem;
-    position: relative;
-}
-.flag-sev {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.58rem;
-    font-weight: 600;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-}
-.flag-title {
-    font-size: 0.92rem;
-    font-weight: 600;
-    color: #e5e7eb;
-    margin-top: 4px;
-    line-height: 1.4;
-}
-.flag-detail {
-    font-size: 0.78rem;
-    color: #6b7280;
-    margin-top: 5px;
-    line-height: 1.6;
-}
-
-/* ── STATEMENT PANELS ── */
-.stmt-wrap {
-    background: #0d1120;
-    border: 1px solid #151e33;
-    border-radius: 10px;
-    overflow: hidden;
-    margin-bottom: 0;
-}
-.stmt-header {
-    background: #101726;
-    padding: 0.5rem 0.9rem;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.6rem;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    border-bottom: 1px solid #151e33;
-}
-.stmt-col-row {
-    display: flex;
-    padding: 0.28rem 0.9rem;
     border-bottom: 1px solid #0d1726;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.58rem;
-    color: #2d3a55;
-    background: #090e1a;
 }
-.h-lbl { flex: 1.6; }
-.h-v   { flex: 1; text-align: right; }
-.stmt-row {
+.about-col-body {
+    font-size: 0.76rem;
+    color: #2d3a55;
+    line-height: 1.8;
+    font-weight: 300;
+}
+.about-col-body a { color: #dc2626; text-decoration: none; }
+
+/* ── WORK PAGE OVERRIDES ── */
+.work-header {
+    background: #04060c;
+    border-bottom: 1px solid #0d1726;
+    padding: 1.2rem 3rem;
     display: flex;
     align-items: center;
-    padding: 0.35rem 0.9rem;
-    border-bottom: 1px solid #0a1020;
-    font-size: 0.73rem;
-    transition: background 0.15s;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    backdrop-filter: blur(12px);
 }
-.stmt-row:last-child { border-bottom: none; }
-.stmt-row:hover { background: rgba(255,255,255,0.015); }
-.stmt-row.hl-increase { background: rgba(220,38,38,0.07);  border-left: 2px solid rgba(220,38,38,0.5); }
-.stmt-row.hl-decrease { background: rgba(245,158,11,0.07); border-left: 2px solid rgba(245,158,11,0.5); }
-.stmt-row.hl-neutral  { background: rgba(59,130,246,0.06); border-left: 2px solid rgba(59,130,246,0.4); }
-.r-lbl { flex: 1.6; color: #4b5563; font-size: 0.71rem; }
-.r-lbl.hl { color: #d1d5db; font-weight: 600; }
-.r-v   { flex: 1; text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 0.67rem; color: #374151; }
-.r-v.pos { color: #34d399; }
-.r-v.neg { color: #f87171; }
-.r-v.hl-r { color: #ef4444; font-weight: 600; }
-.r-v.hl-a { color: #f59e0b; font-weight: 600; }
-.r-v.hl-b { color: #60a5fa; font-weight: 600; }
-.chg { font-family: 'JetBrains Mono', monospace; font-size: 0.56rem; margin-left: 3px; }
-.ev-lede {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.6rem;
-    color: #2d3a55;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    margin: 0.7rem 0 0.4rem 0.1rem;
+.work-title-bar {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1rem;
+    color: #e5e7eb;
+}
+.work-title-bar em { color: #ef4444; font-style: italic; }
+
+/* ── ANIMATIONS ── */
+@keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(22px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ── SECTION HEADING ── */
-.sec-head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.62rem;
-    color: #374151;
-    text-transform: uppercase;
-    letter-spacing: 2.5px;
-    margin: 1.4rem 0 0.8rem;
+/* ── BUTTON RESETS for Streamlit ── */
+.stButton > button {
+    background: transparent !important;
+    color: #e5e7eb !important;
+    border: 1px solid #1c2640 !important;
+    border-radius: 10px !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-weight: 500 !important;
+    font-size: 0.85rem !important;
+    padding: 0.65rem 1.8rem !important;
+    letter-spacing: 0.2px !important;
+    transition: all 0.2s !important;
 }
-.sec-head::after { content: ''; flex: 1; height: 1px; background: #111827; }
+.stButton > button:hover {
+    background: #0d1726 !important;
+    border-color: #dc2626 !important;
+    color: #f0f2f8 !important;
+}
+.stButton > button[kind="primary"] {
+    background: linear-gradient(135deg, #b91c1c, #dc2626) !important;
+    border-color: transparent !important;
+    color: #fff !important;
+}
+.stButton > button[kind="primary"]:hover {
+    background: linear-gradient(135deg, #dc2626, #ef4444) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 20px rgba(220,38,38,0.3) !important;
+}
 
-/* ── WIDGET OVERRIDES ── */
+/* Widget overrides for work sections */
 div[data-baseweb="select"] > div {
-    background: #111827 !important;
+    background: #0d1120 !important;
     border: 1px solid #1f2d47 !important;
     border-radius: 10px !important;
     color: #e2e8f0 !important;
 }
 div[data-baseweb="select"] span { color: #e2e8f0 !important; }
-div[data-baseweb="select"] svg { fill: #4b5563 !important; }
-div[data-baseweb="select"]:hover > div { border-color: #2d4070 !important; }
+div[data-baseweb="select"] svg  { fill: #4b5563 !important; }
 
 .stTextInput input {
     background: #111827 !important;
@@ -1009,55 +1205,25 @@ div[data-baseweb="select"]:hover > div { border-color: #2d4070 !important; }
     color: #e2e8f0 !important;
     font-family: 'JetBrains Mono', monospace !important;
     font-size: 0.82rem !important;
-    padding: 0.55rem 0.9rem !important;
 }
 .stTextInput input::placeholder { color: #374151 !important; }
-.stTextInput input:focus { border-color: #3b5bdb !important; box-shadow: 0 0 0 3px rgba(59,91,219,0.12) !important; }
+.stTextInput input:focus { border-color: #dc2626 !important; }
+
 label[data-testid="stWidgetLabel"] > div > p { color: #6b7280 !important; font-size: 0.72rem !important; }
-
-.stButton > button {
-    background: linear-gradient(135deg, #1d3a9e, #2d5be3) !important;
-    color: #fff !important;
-    border: none !important;
-    border-radius: 10px !important;
-    font-family: 'Space Grotesk', sans-serif !important;
-    font-weight: 600 !important;
-    font-size: 0.87rem !important;
-    padding: 0.6rem 1.6rem !important;
-    letter-spacing: 0.2px !important;
-    transition: all 0.2s !important;
-    box-shadow: 0 4px 16px rgba(29,58,158,0.3) !important;
-}
-.stButton > button:hover {
-    background: linear-gradient(135deg, #2242b8, #3468f0) !important;
-    transform: translateY(-1px) !important;
-    box-shadow: 0 6px 20px rgba(29,58,158,0.4) !important;
-}
-.stButton > button:active { transform: scale(0.98) !important; }
-
-.stDownloadButton > button {
-    background: #052e16 !important;
-    color: #4ade80 !important;
-    border: 1px solid #14532d !important;
-    border-radius: 10px !important;
-    font-weight: 600 !important;
-}
 
 .stTabs [data-baseweb="tab-list"] {
     background: #0d1120 !important;
     border-radius: 12px !important;
     padding: 5px !important;
-    gap: 3px !important;
     border: 1px solid #1a2540 !important;
 }
 .stTabs [data-baseweb="tab"] {
     background: transparent !important;
     color: #4b5563 !important;
     border-radius: 8px !important;
-    font-family: 'Space Grotesk', sans-serif !important;
+    font-family: 'DM Sans', sans-serif !important;
     font-size: 0.83rem !important;
     font-weight: 500 !important;
-    padding: 0.45rem 1.1rem !important;
 }
 .stTabs [aria-selected="true"] {
     background: #162048 !important;
@@ -1071,9 +1237,7 @@ details {
     border-radius: 14px !important;
     overflow: hidden !important;
     margin-bottom: 0.85rem !important;
-    transition: border-color 0.2s !important;
 }
-details:hover { border-color: #243566 !important; }
 details summary {
     background: #0d1120 !important;
     color: #c9d1e6 !important;
@@ -1084,7 +1248,6 @@ details summary {
     list-style: none !important;
 }
 details summary::-webkit-details-marker { display: none; }
-details summary:hover { background: #111827 !important; color: #e5e7eb !important; }
 details[open] summary { border-bottom: 1px solid #1a2540 !important; }
 details > div { background: #0d1120 !important; padding: 1.2rem 1.4rem !important; }
 
@@ -1097,13 +1260,63 @@ details > div { background: #0d1120 !important; padding: 1.2rem 1.4rem !importan
 [data-testid="stMetricLabel"] { color: #6b7280 !important; font-size: 0.7rem !important; }
 [data-testid="stMetricValue"] { color: #e5e7eb !important; font-size: 1.3rem !important; font-weight: 700 !important; }
 
+.stDownloadButton > button {
+    background: #052e16 !important;
+    color: #4ade80 !important;
+    border: 1px solid #14532d !important;
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+}
+
 hr { border-color: #111827 !important; }
 .stCaption, small { color: #4b5563 !important; font-size: 0.7rem !important; }
+
+/* Dual score, bucket, flag, stmt panel etc carry over from original */
+.dual-score-wrap{display:flex;gap:14px;margin-bottom:1.2rem;}
+.score-card{flex:1;background:#0d1120;border-radius:16px;padding:1.4rem 1.2rem;text-align:center;position:relative;overflow:hidden;transition:transform 0.2s;}
+.score-card:hover{transform:translateY(-3px);}
+.score-card.risk{border:1px solid rgba(220,38,38,0.2);}
+.score-card.manip{border:1px solid rgba(139,92,246,0.2);}
+.score-card.risk::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,rgba(220,38,38,0.6),transparent);}
+.score-card.manip::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,rgba(139,92,246,0.6),transparent);}
+.score-type{font-family:'JetBrains Mono',monospace;font-size:0.58rem;text-transform:uppercase;letter-spacing:2.5px;margin-bottom:0.4rem;}
+.score-type.risk{color:#ef4444;}.score-type.manip{color:#a78bfa;}
+.score-company{font-size:0.75rem;font-weight:500;color:#9ca3af;margin:0.2rem 0 0.5rem;line-height:1.3;}
+.score-ticker{font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:#374151;}
+.score-number{font-size:3rem;font-weight:700;line-height:1;margin:0.3rem 0;letter-spacing:-2px;}
+.score-denom{font-size:1rem;color:#374151;font-weight:400;letter-spacing:0;}
+.score-verdict{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:0.58rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;padding:4px 14px;border-radius:20px;margin-top:0.4rem;}
+.score-flags{font-size:0.65rem;color:#374151;margin-top:0.6rem;}
+.bucket-header{display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;font-size:0.65rem;text-transform:uppercase;letter-spacing:2.5px;margin:1.4rem 0 0.8rem;padding-bottom:0.6rem;border-bottom:1px solid #111827;}
+.bucket-header.risk{color:#ef4444;}.bucket-header.manip{color:#a78bfa;}
+.b-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.b-dot.risk{background:#ef4444;box-shadow:0 0 8px rgba(239,68,68,0.5);}
+.b-dot.manip{background:#a78bfa;box-shadow:0 0 8px rgba(167,139,250,0.5);}
+.flag-card{border-radius:12px;padding:1rem 1.15rem;margin-bottom:0.6rem;position:relative;}
+.flag-sev{font-family:'JetBrains Mono',monospace;font-size:0.58rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;}
+.flag-title{font-size:0.92rem;font-weight:600;color:#e5e7eb;margin-top:4px;line-height:1.4;}
+.flag-detail{font-size:0.78rem;color:#6b7280;margin-top:5px;line-height:1.6;}
+.stmt-wrap{background:#0d1120;border:1px solid #151e33;border-radius:10px;overflow:hidden;margin-bottom:0;}
+.stmt-header{background:#101726;padding:0.5rem 0.9rem;font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:#6b7280;text-transform:uppercase;letter-spacing:2px;border-bottom:1px solid #151e33;}
+.stmt-col-row{display:flex;padding:0.28rem 0.9rem;border-bottom:1px solid #0d1726;font-family:'JetBrains Mono',monospace;font-size:0.58rem;color:#2d3a55;background:#090e1a;}
+.h-lbl{flex:1.6;}.h-v{flex:1;text-align:right;}
+.stmt-row{display:flex;align-items:center;padding:0.35rem 0.9rem;border-bottom:1px solid #0a1020;font-size:0.73rem;transition:background 0.15s;}
+.stmt-row:last-child{border-bottom:none;}
+.stmt-row:hover{background:rgba(255,255,255,0.015);}
+.stmt-row.hl-increase{background:rgba(220,38,38,0.07);border-left:2px solid rgba(220,38,38,0.5);}
+.stmt-row.hl-decrease{background:rgba(245,158,11,0.07);border-left:2px solid rgba(245,158,11,0.5);}
+.stmt-row.hl-neutral{background:rgba(59,130,246,0.06);border-left:2px solid rgba(59,130,246,0.4);}
+.r-lbl{flex:1.6;color:#4b5563;font-size:0.71rem;}.r-lbl.hl{color:#d1d5db;font-weight:600;}
+.r-v{flex:1;text-align:right;font-family:'JetBrains Mono',monospace;font-size:0.67rem;color:#374151;}
+.r-v.pos{color:#34d399;}.r-v.neg{color:#f87171;}.r-v.hl-r{color:#ef4444;font-weight:600;}.r-v.hl-a{color:#f59e0b;font-weight:600;}.r-v.hl-b{color:#60a5fa;font-weight:600;}
+.chg{font-family:'JetBrains Mono',monospace;font-size:0.56rem;margin-left:3px;}
+.ev-lede{font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:#2d3a55;text-transform:uppercase;letter-spacing:2px;margin:0.7rem 0 0.4rem 0.1rem;}
+.sec-head{display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;font-size:0.62rem;color:#374151;text-transform:uppercase;letter-spacing:2.5px;margin:1.4rem 0 0.8rem;}
+.sec-head::after{content:'';flex:1;height:1px;background:#111827;}
 </style>
 """, unsafe_allow_html=True)
 
-
-# ── helpers ───────────────────────────────────────────────────────
+# ── HELPERS (same as before) ───────────────────────────────────
 
 def fmt_cr(v):
     if v is None or (isinstance(v, float) and pd.isna(v)): return "—"
@@ -1124,398 +1337,186 @@ def _risk_label(score):
 def _manip_label(score):
     return "HIGH CONCERN" if score >= 6 else "SIGNALS" if score >= 3 else "CLEAN"
 
-
 def risk_gauge(score, color, title_text):
-    """Gauge using only properties valid across all recent Plotly versions."""
     fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=score,
-        title={'text': title_text, 'font': {'size': 11, 'color': '#6b7280', 'family': 'Space Grotesk'}},
-        number={'font': {'size': 32, 'color': color, 'family': 'Space Grotesk'}, 'suffix': '/10'},
+        mode="gauge+number", value=score,
+        title={'text': title_text, 'font': {'size': 11, 'color': '#6b7280', 'family': 'DM Sans'}},
+        number={'font': {'size': 32, 'color': color, 'family': 'DM Sans'}, 'suffix': '/10'},
         domain={'x': [0, 1], 'y': [0, 1]},
         gauge={
-            'axis': {
-                'range': [0, 10],
-                'tickwidth': 1,
-                'tickcolor': '#1f2d47',
-                'tickfont': {'color': '#374151', 'size': 8},
-            },
-            'bar': {'color': color, 'thickness': 0.22},
-            'bgcolor': '#080b14',
-            'borderwidth': 0,
+            'axis': {'range': [0, 10], 'tickwidth': 1, 'tickcolor': '#1f2d47', 'tickfont': {'color': '#374151', 'size': 8}},
+            'bar': {'color': color, 'thickness': 0.22}, 'bgcolor': '#080b14', 'borderwidth': 0,
             'steps': [
                 {'range': [0,  3], 'color': 'rgba(34,197,94,0.06)'},
                 {'range': [3,  6], 'color': 'rgba(245,158,11,0.06)'},
                 {'range': [6, 10], 'color': 'rgba(239,68,68,0.08)'},
             ],
-            'threshold': {
-                'line': {'color': color, 'width': 2},
-                'thickness': 0.78,
-                'value': score,
-            }
+            'threshold': {'line': {'color': color, 'width': 2}, 'thickness': 0.78, 'value': score}
         }
     ))
-    fig.update_layout(
-        height=190,
-        margin=dict(t=38, b=8, l=20, r=20),
-        paper_bgcolor='#0d1120',
-        plot_bgcolor='#0d1120',
-        font=dict(color='#6b7280', family='Space Grotesk'),
-    )
+    fig.update_layout(height=190, margin=dict(t=38, b=8, l=20, r=20),
+                      paper_bgcolor='#0d1120', plot_bgcolor='#0d1120',
+                      font=dict(color='#6b7280', family='DM Sans'))
     return fig
 
-
 def make_trend_bar(series, title, hl_type, show_trendline=True):
-    """
-    Enhanced bar chart with:
-    - Trendline (OLS regression)
-    - Color-coded bars (last bar highlighted)
-    - YoY % change annotations
-    - Cleaner typography
-    - Interactive hover tooltips
-    """
-    if series is None or series.dropna().empty:
-        return None
-
+    if series is None or series.dropna().empty: return None
     s      = series.dropna().sort_index()
     years  = [str(d)[:4] for d in s.index]
     values = list(s.values)
-
-    if len(values) < 2:
-        return None
-
-    # Color scheme
+    if len(values) < 2: return None
     if hl_type == "increase":
-        bar_color_base = "rgba(220,38,38,0.25)"
-        bar_color_last = "#ef4444"
-        accent         = "#ef4444"
-        tl_color       = "rgba(239,68,68,0.6)"
+        bar_color_base, bar_color_last, tl_color = "rgba(220,38,38,0.25)", "#ef4444", "rgba(239,68,68,0.6)"
     elif hl_type == "decrease":
-        bar_color_base = "rgba(245,158,11,0.25)"
-        bar_color_last = "#f59e0b"
-        accent         = "#f59e0b"
-        tl_color       = "rgba(245,158,11,0.6)"
+        bar_color_base, bar_color_last, tl_color = "rgba(245,158,11,0.25)", "#f59e0b", "rgba(245,158,11,0.6)"
     else:
-        bar_color_base = "rgba(59,130,246,0.25)"
-        bar_color_last = "#3b82f6"
-        accent         = "#3b82f6"
-        tl_color       = "rgba(59,130,246,0.6)"
-
+        bar_color_base, bar_color_last, tl_color = "rgba(59,130,246,0.25)", "#3b82f6", "rgba(59,130,246,0.6)"
     bar_colors = [bar_color_base] * (len(values) - 1) + [bar_color_last]
-
-    # YoY % changes
-    yoy_text = []
-    for i, v in enumerate(values):
-        if i == 0:
-            yoy_text.append("")
+    yoy_text = [""]
+    for i in range(1, len(values)):
+        prev = values[i-1]
+        if prev and prev != 0:
+            pct = (values[i] - prev) / abs(prev) * 100
+            yoy_text.append(f"{'+'if pct>0 else''}{pct:.0f}%")
         else:
-            prev = values[i - 1]
-            if prev and prev != 0:
-                pct = (v - prev) / abs(prev) * 100
-                sign = "+" if pct > 0 else ""
-                yoy_text.append(f"{sign}{pct:.0f}%")
-            else:
-                yoy_text.append("")
-
-    hover_text = [
-        f"<b>{y}</b><br>₹{v:,.1f} Cr<br>{yoy_text[i] if yoy_text[i] else '—'}"
-        for i, (y, v) in enumerate(zip(years, values))
-    ]
-
+            yoy_text.append("")
+    hover_text = [f"<b>{y}</b><br>₹{v:,.1f} Cr<br>{yoy_text[i] if yoy_text[i] else '—'}"
+                  for i, (y, v) in enumerate(zip(years, values))]
     fig = go.Figure()
-
-    # Bars
-    fig.add_trace(go.Bar(
-        x=years,
-        y=values,
-        marker=dict(color=bar_colors, line=dict(width=0)),
-        hovertemplate="%{customdata}<extra></extra>",
-        customdata=hover_text,
-        showlegend=False,
-        name=title,
-    ))
-
-    # Trendline (simple OLS)
+    fig.add_trace(go.Bar(x=years, y=values, marker=dict(color=bar_colors, line=dict(width=0)),
+                         hovertemplate="%{customdata}<extra></extra>", customdata=hover_text,
+                         showlegend=False, name=title))
     if show_trendline and len(values) >= 3:
         x_idx = np.arange(len(values), dtype=float)
         y_arr = np.array(values, dtype=float)
         valid = ~np.isnan(y_arr)
         if valid.sum() >= 2:
-            x_v, y_v = x_idx[valid], y_arr[valid]
-            m, b = np.polyfit(x_v, y_v, 1)
-            trend_y = [m * xi + b for xi in x_idx]
-
-            fig.add_trace(go.Scatter(
-                x=years,
-                y=trend_y,
-                mode='lines',
-                line=dict(color=tl_color, width=2, dash='dot'),
-                hovertemplate="Trend: ₹%{y:,.1f} Cr<extra></extra>",
-                showlegend=False,
-                name="Trend",
-            ))
-
-    # Yoy annotations on bars
+            m, b = np.polyfit(x_idx[valid], y_arr[valid], 1)
+            fig.add_trace(go.Scatter(x=years, y=[m*xi+b for xi in x_idx],
+                                     mode='lines', line=dict(color=tl_color, width=2, dash='dot'),
+                                     showlegend=False))
     annotations = []
     for i, (y, val, txt) in enumerate(zip(years, values, yoy_text)):
         if txt:
             pct_val = float(txt.replace("+","").replace("%",""))
-            color = "#34d399" if pct_val >= 0 else "#f87171"
-            annotations.append(dict(
-                x=y, y=val,
-                text=f"<span style='color:{color}'>{txt}</span>",
-                showarrow=False,
-                yanchor="bottom",
-                yshift=5,
-                font=dict(size=8, color=color, family="JetBrains Mono"),
-            ))
-
-    fig.update_layout(
-        title=dict(
-            text=f"<b>{title}</b>",
-            font=dict(size=11, color='#9ca3af', family='Space Grotesk'),
-            x=0.5, xanchor='center',
-        ),
-        height=210,
-        margin=dict(t=38, b=12, l=10, r=10),
-        paper_bgcolor='#0d1120',
-        plot_bgcolor='#0d1120',
-        font=dict(color='#6b7280', family='Space Grotesk'),
-        annotations=annotations,
-        xaxis=dict(
-            type='category',
-            tickfont=dict(color='#4b5563', size=9, family='JetBrains Mono'),
-            showgrid=False,
-            tickangle=0,
-        ),
-        yaxis=dict(
-            gridcolor='rgba(26,37,64,0.5)',
-            gridwidth=0.5,
-            zerolinecolor='rgba(26,37,64,0.8)',
-            tickfont=dict(color='#374151', size=8),
-            showticklabels=False,
-        ),
-        bargap=0.35,
-        showlegend=False,
-        hovermode='x unified',
-    )
-
+            col = "#34d399" if pct_val >= 0 else "#f87171"
+            annotations.append(dict(x=y, y=val, text=f"<span style='color:{col}'>{txt}</span>",
+                                    showarrow=False, yanchor="bottom", yshift=5,
+                                    font=dict(size=8, color=col, family="JetBrains Mono")))
+    fig.update_layout(title=dict(text=f"<b>{title}</b>", font=dict(size=11, color='#9ca3af', family='DM Sans'), x=0.5),
+                      height=210, margin=dict(t=38, b=12, l=10, r=10),
+                      paper_bgcolor='#0d1120', plot_bgcolor='#0d1120',
+                      font=dict(color='#6b7280', family='DM Sans'), annotations=annotations,
+                      xaxis=dict(type='category', tickfont=dict(color='#4b5563', size=9, family='JetBrains Mono'), showgrid=False),
+                      yaxis=dict(gridcolor='rgba(26,37,64,0.5)', gridwidth=0.5, zerolinecolor='rgba(26,37,64,0.8)',
+                                 tickfont=dict(color='#374151', size=8), showticklabels=False),
+                      bargap=0.35, showlegend=False, hovermode='x unified')
     return fig
-
 
 def make_dual_trend_chart(series1, label1, series2, label2, title):
-    """
-    Dual-series line chart for comparing two metrics over time (e.g. CFO vs Net Profit).
-    Includes trendlines for both series.
-    """
-    if series1 is None or series2 is None:
-        return None
-
-    s1 = series1.dropna().sort_index()
-    s2 = series2.dropna().sort_index()
-
-    if s1.empty or s2.empty:
-        return None
-
-    # Align on common years
-    years1 = [str(d)[:4] for d in s1.index]
-    years2 = [str(d)[:4] for d in s2.index]
-
+    if series1 is None or series2 is None: return None
+    s1 = series1.dropna().sort_index(); s2 = series2.dropna().sort_index()
+    if s1.empty or s2.empty: return None
+    years1 = [str(d)[:4] for d in s1.index]; years2 = [str(d)[:4] for d in s2.index]
     fig = go.Figure()
-
-    # Series 1 — line + scatter
-    fig.add_trace(go.Scatter(
-        x=years1, y=list(s1.values),
-        mode='lines+markers',
-        name=label1,
-        line=dict(color='#3b82f6', width=2),
-        marker=dict(size=6, color='#3b82f6', symbol='circle'),
-        hovertemplate=f"<b>{label1}</b><br>₹%{{y:,.1f}} Cr<extra></extra>",
-    ))
-
-    # Series 2 — line + scatter
-    fig.add_trace(go.Scatter(
-        x=years2, y=list(s2.values),
-        mode='lines+markers',
-        name=label2,
-        line=dict(color='#ef4444', width=2),
-        marker=dict(size=6, color='#ef4444', symbol='diamond'),
-        hovertemplate=f"<b>{label2}</b><br>₹%{{y:,.1f}} Cr<extra></extra>",
-    ))
-
-    # Trendlines
-    for (sy, sv, color) in [(years1, list(s1.values), 'rgba(59,130,246,0.4)'),
-                            (years2, list(s2.values), 'rgba(239,68,68,0.4)')]:
-        x_idx = np.arange(len(sv), dtype=float)
-        y_arr = np.array(sv, dtype=float)
+    fig.add_trace(go.Scatter(x=years1, y=list(s1.values), mode='lines+markers', name=label1,
+                             line=dict(color='#3b82f6', width=2), marker=dict(size=6, color='#3b82f6'),
+                             hovertemplate=f"<b>{label1}</b><br>₹%{{y:,.1f}} Cr<extra></extra>"))
+    fig.add_trace(go.Scatter(x=years2, y=list(s2.values), mode='lines+markers', name=label2,
+                             line=dict(color='#ef4444', width=2), marker=dict(size=6, color='#ef4444', symbol='diamond'),
+                             hovertemplate=f"<b>{label2}</b><br>₹%{{y:,.1f}} Cr<extra></extra>"))
+    for (sy, sv, color) in [(years1,list(s1.values),'rgba(59,130,246,0.4)'),
+                             (years2,list(s2.values),'rgba(239,68,68,0.4)')]:
+        x_idx = np.arange(len(sv), dtype=float); y_arr = np.array(sv, dtype=float)
         if len(y_arr) >= 3:
             m, b = np.polyfit(x_idx, y_arr, 1)
-            trend_y = [m * xi + b for xi in x_idx]
-            fig.add_trace(go.Scatter(
-                x=sy, y=trend_y,
-                mode='lines',
-                line=dict(color=color, width=1.5, dash='dot'),
-                showlegend=False, hoverinfo='skip',
-            ))
-
-    fig.update_layout(
-        title=dict(text=f"<b>{title}</b>",
-                   font=dict(size=11, color='#9ca3af', family='Space Grotesk'), x=0.5),
-        height=230,
-        margin=dict(t=38, b=12, l=10, r=10),
-        paper_bgcolor='#0d1120',
-        plot_bgcolor='#0d1120',
-        font=dict(color='#6b7280', family='Space Grotesk'),
-        legend=dict(
-            font=dict(color='#9ca3af', size=9, family='JetBrains Mono'),
-            bgcolor='rgba(13,17,32,0.8)',
-            bordercolor='#1a2540',
-            borderwidth=1,
-            orientation='h',
-            yanchor='bottom', y=1.02,
-            xanchor='center', x=0.5,
-        ),
-        xaxis=dict(
-            type='category',
-            tickfont=dict(color='#4b5563', size=9, family='JetBrains Mono'),
-            showgrid=False,
-        ),
-        yaxis=dict(
-            gridcolor='rgba(26,37,64,0.5)',
-            gridwidth=0.5,
-            zerolinecolor='rgba(26,37,64,0.8)',
-            tickfont=dict(color='#374151', size=8),
-            showticklabels=False,
-        ),
-        hovermode='x unified',
-    )
+            fig.add_trace(go.Scatter(x=sy, y=[m*xi+b for xi in x_idx], mode='lines',
+                                     line=dict(color=color, width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'))
+    fig.update_layout(title=dict(text=f"<b>{title}</b>", font=dict(size=11, color='#9ca3af', family='DM Sans'), x=0.5),
+                      height=230, margin=dict(t=38, b=12, l=10, r=10),
+                      paper_bgcolor='#0d1120', plot_bgcolor='#0d1120',
+                      font=dict(color='#6b7280', family='DM Sans'),
+                      legend=dict(font=dict(color='#9ca3af', size=9, family='JetBrains Mono'),
+                                  bgcolor='rgba(13,17,32,0.8)', bordercolor='#1a2540', borderwidth=1,
+                                  orientation='h', yanchor='bottom', y=1.02, xanchor='center', x=0.5),
+                      xaxis=dict(type='category', tickfont=dict(color='#4b5563', size=9, family='JetBrains Mono'), showgrid=False),
+                      yaxis=dict(gridcolor='rgba(26,37,64,0.5)', gridwidth=0.5, zerolinecolor='rgba(26,37,64,0.8)',
+                                 tickfont=dict(color='#374151', size=8), showticklabels=False),
+                      hovermode='x unified')
     return fig
 
-
 PANEL_ROWS = {
-    "BS": [
-        ("Total Debt",          "total_debt"),
-        ("Shareholders Equity", "equity"),
-        ("Receivables",         "receivables"),
-        ("Inventory",           "inventory"),
-        ("Payables",            "payables"),
-        ("Cash & Equivalents",  "cash"),
-        ("Current Assets",      "current_assets"),
-        ("Current Liabilities", "current_liab"),
-        ("Goodwill",            "goodwill"),
-        ("Deferred Tax",        "deferred_tax"),
-        ("Total Assets",        "total_assets"),
-    ],
-    "PL": [
-        ("Revenue",             "revenue"),
-        ("Gross Profit",        "gross_profit"),
-        ("EBITDA",              "ebitda"),
-        ("Operating Profit",    "operating_profit"),
-        ("Interest Expense",    "interest_exp"),
-        ("Depreciation",        "depreciation"),
-        ("Net Profit",          "net_profit"),
-    ],
-    "CF": [
-        ("Operating CF (CFO)",  "cfo"),
-        ("CapEx",               "capex"),
-        ("Free Cash Flow",      "fcf"),
-        ("Investing CF",        "investing"),
-    ],
+    "BS": [("Total Debt","total_debt"),("Shareholders Equity","equity"),("Receivables","receivables"),
+           ("Inventory","inventory"),("Payables","payables"),("Cash & Equivalents","cash"),
+           ("Current Assets","current_assets"),("Current Liabilities","current_liab"),
+           ("Goodwill","goodwill"),("Deferred Tax","deferred_tax"),("Total Assets","total_assets")],
+    "PL": [("Revenue","revenue"),("Gross Profit","gross_profit"),("EBITDA","ebitda"),
+           ("Operating Profit","operating_profit"),("Interest Expense","interest_exp"),
+           ("Depreciation","depreciation"),("Net Profit","net_profit")],
+    "CF": [("Operating CF (CFO)","cfo"),("CapEx","capex"),("Free Cash Flow","fcf"),("Investing CF","investing")],
 }
 PANEL_SRC   = {"BS":"bs","PL":"pnl","CF":"cf"}
 PANEL_ICON  = {"BS":"🏦","PL":"📊","CF":"💰"}
 PANEL_TITLE = {"BS":"Balance Sheet","PL":"P & L","CF":"Cash Flow"}
 
-
 def _get_val(data, panel_key, row_key, year_str):
-    """Look up a single year value; index is already normalised to 4-char strings."""
     src = data.get(PANEL_SRC[panel_key], {})
     s   = src.get(row_key)
     if s is None: return None
     s2  = s.dropna()
-    # Direct lookup first (index already normalised)
-    if year_str in s2.index:
-        return float(s2[year_str])
-    # Fallback: scan by str prefix (handles any non-normalised edge cases)
+    if year_str in s2.index: return float(s2[year_str])
     for idx in s2.index:
-        if str(idx)[:4] == year_str:
-            return float(s2[idx])
+        if str(idx)[:4] == year_str: return float(s2[idx])
     return None
 
-
 def render_stmt_panel(panel_key, data, hl_labels, hl_type_map, n_years=3):
-    src   = data.get(PANEL_SRC[panel_key], {})
-    rows  = PANEL_ROWS[panel_key]
+    src = data.get(PANEL_SRC[panel_key], {})
+    rows = PANEL_ROWS[panel_key]
     all_years = set()
     for _, key in rows:
         s = src.get(key)
         if s is not None:
-            for idx in s.dropna().index:
-                all_years.add(str(idx)[:4])
+            for idx in s.dropna().index: all_years.add(str(idx)[:4])
     years = sorted(all_years)[-n_years:]
     if not years:
-        st.markdown(
-            f'<div class="stmt-wrap"><div class="stmt-header">'
-            f'{PANEL_ICON[panel_key]} {PANEL_TITLE[panel_key]}</div>'
-            f'<div class="stmt-row"><span class="r-lbl" style="color:#2d3a55">No data</span></div></div>',
-            unsafe_allow_html=True)
+        st.markdown(f'<div class="stmt-wrap"><div class="stmt-header">{PANEL_ICON[panel_key]} {PANEL_TITLE[panel_key]}</div>'
+                    f'<div class="stmt-row"><span class="r-lbl" style="color:#2d3a55">No data</span></div></div>', unsafe_allow_html=True)
         return
-
     year_headers = "".join(f'<span class="h-v">{y}</span>' for y in years)
-    html = (f'<div class="stmt-wrap">'
-            f'<div class="stmt-header">{PANEL_ICON[panel_key]} {PANEL_TITLE[panel_key]}</div>'
+    html = (f'<div class="stmt-wrap"><div class="stmt-header">{PANEL_ICON[panel_key]} {PANEL_TITLE[panel_key]}</div>'
             f'<div class="stmt-col-row"><span class="h-lbl">Metric</span>{year_headers}</div>')
-
     for label, key in rows:
-        is_hl   = label in hl_labels
-        hl_type = hl_type_map.get(label, "neutral") if is_hl else None
+        is_hl = label in hl_labels; hl_type = hl_type_map.get(label,"neutral") if is_hl else None
         row_cls = f"stmt-row hl-{hl_type}" if is_hl else "stmt-row"
         lbl_cls = "r-lbl hl" if is_hl else "r-lbl"
-        vals_html = ""
-        prev_val  = None
-
+        vals_html = ""; prev_val = None
         for y in years:
             val = _get_val(data, panel_key, key, y)
-            if val is None:
-                val_str = "—"; val_cls = "r-v"; chg_html = ""
+            if val is None: val_str="—"; val_cls="r-v"; chg_html=""
             else:
                 val_str = fmt_cr(val)
-                if is_hl:
-                    val_cls = f"r-v hl-{'r' if hl_type=='increase' else 'a' if hl_type=='decrease' else 'b'}"
-                elif val < 0:
-                    val_cls = "r-v neg"
-                else:
-                    val_cls = "r-v pos" if val > 0 else "r-v"
+                val_cls = (f"r-v hl-{'r' if hl_type=='increase' else 'a' if hl_type=='decrease' else 'b'}" if is_hl
+                           else "r-v neg" if val < 0 else "r-v pos" if val > 0 else "r-v")
                 chg_html = ""
                 if is_hl and prev_val is not None and prev_val != 0:
                     chg = (val - prev_val) / abs(prev_val)
                     arrow = "▲" if chg > 0 else "▼"
-                    bad = (chg > 0 and hl_type == "increase") or (chg < 0 and hl_type == "decrease")
+                    bad = (chg>0 and hl_type=="increase") or (chg<0 and hl_type=="decrease")
                     chg_color = "#ef4444" if bad else "#34d399"
                     chg_html = f'<span class="chg" style="color:{chg_color}">{arrow}{abs(chg):.0%}</span>'
             vals_html += f'<span class="{val_cls}">{val_str}{chg_html}</span>'
             prev_val = val
         html += f'<div class="{row_cls}"><span class="{lbl_cls}">{label}</span>{vals_html}</div>'
-
     html += "</div>"
     st.markdown(html, unsafe_allow_html=True)
 
-
 def dual_score_card_html(ticker, name, risk_score, manip_score, risk_flags, manip_flags):
-    rc = _score_color(risk_score)
-    mc = _manip_color(manip_score)
+    rc = _score_color(risk_score); mc = _manip_color(manip_score)
     sym = ticker.replace('.NS','').replace('.BO','')
-
     def pill_bg(color, alpha=0.12):
-        h = color.lstrip('#')
-        r, g, b = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
-        return f"rgba({r},{g},{b},{alpha})"
-
+        h=color.lstrip('#'); r,g,b=int(h[0:2],16),int(h[2:4],16),int(h[4:6],16); return f"rgba({r},{g},{b},{alpha})"
     def pill_border(color, alpha=0.3):
-        h = color.lstrip('#')
-        r, g, b = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
-        return f"rgba({r},{g},{b},{alpha})"
-
+        h=color.lstrip('#'); r,g,b=int(h[0:2],16),int(h[2:4],16),int(h[4:6],16); return f"rgba({r},{g},{b},{alpha})"
     return f"""
     <div class="dual-score-wrap">
       <div class="score-card risk">
@@ -1523,9 +1524,7 @@ def dual_score_card_html(ticker, name, risk_score, manip_score, risk_flags, mani
         <div class="score-ticker">{sym}</div>
         <div class="score-company">{name[:30]}</div>
         <div class="score-number" style="color:{rc};">{risk_score}<span class="score-denom">/10</span></div>
-        <div><span class="score-verdict"
-          style="background:{pill_bg(rc)};border:1px solid {pill_border(rc)};color:{rc};">
-          {_risk_label(risk_score)}</span></div>
+        <div><span class="score-verdict" style="background:{pill_bg(rc)};border:1px solid {pill_border(rc)};color:{rc};">{_risk_label(risk_score)}</span></div>
         <div class="score-flags">🚩 {len(risk_flags)} flag(s)</div>
       </div>
       <div class="score-card manip">
@@ -1533,227 +1532,386 @@ def dual_score_card_html(ticker, name, risk_score, manip_score, risk_flags, mani
         <div class="score-ticker">{sym}</div>
         <div class="score-company">{name[:30]}</div>
         <div class="score-number" style="color:{mc};">{manip_score}<span class="score-denom">/10</span></div>
-        <div><span class="score-verdict"
-          style="background:{pill_bg(mc)};border:1px solid {pill_border(mc)};color:{mc};">
-          {_manip_label(manip_score)}</span></div>
+        <div><span class="score-verdict" style="background:{pill_bg(mc)};border:1px solid {pill_border(mc)};color:{mc};">{_manip_label(manip_score)}</span></div>
         <div class="score-flags">⚠️ {len(manip_flags)} signal(s)</div>
       </div>
     </div>"""
 
-
 def render_flag(flag_tuple, data, unique_key: str, flag_type: str = "RISK"):
     _, sev, title, detail = flag_tuple[0], flag_tuple[1], flag_tuple[2], flag_tuple[3]
     evidence = flag_tuple[4] if len(flag_tuple) > 4 else []
-
     if flag_type == "MANIP":
-        color_map  = {"HIGH": "#a78bfa", "MEDIUM": "#c4b5fd", "LOW": "#ddd6fe"}
-        bg_map     = {"HIGH": "rgba(139,92,246,0.07)", "MEDIUM": "rgba(167,139,250,0.06)", "LOW": "rgba(221,214,254,0.04)"}
-        border_map = {"HIGH": "rgba(139,92,246,0.3)",  "MEDIUM": "rgba(167,139,250,0.2)", "LOW": "rgba(221,214,254,0.15)"}
+        color_map  = {"HIGH":"#a78bfa","MEDIUM":"#c4b5fd","LOW":"#ddd6fe"}
+        bg_map     = {"HIGH":"rgba(139,92,246,0.07)","MEDIUM":"rgba(167,139,250,0.06)","LOW":"rgba(221,214,254,0.04)"}
+        border_map = {"HIGH":"rgba(139,92,246,0.3)","MEDIUM":"rgba(167,139,250,0.2)","LOW":"rgba(221,214,254,0.15)"}
         icon = "⚠️"
     else:
-        color_map  = {"HIGH": "#ef4444", "MEDIUM": "#f59e0b", "LOW": "#3b82f6"}
-        bg_map     = {"HIGH": "rgba(220,38,38,0.07)", "MEDIUM": "rgba(245,158,11,0.07)", "LOW": "rgba(59,130,246,0.06)"}
-        border_map = {"HIGH": "rgba(220,38,38,0.28)", "MEDIUM": "rgba(245,158,11,0.28)", "LOW": "rgba(59,130,246,0.22)"}
+        color_map  = {"HIGH":"#ef4444","MEDIUM":"#f59e0b","LOW":"#3b82f6"}
+        bg_map     = {"HIGH":"rgba(220,38,38,0.07)","MEDIUM":"rgba(245,158,11,0.07)","LOW":"rgba(59,130,246,0.06)"}
+        border_map = {"HIGH":"rgba(220,38,38,0.28)","MEDIUM":"rgba(245,158,11,0.28)","LOW":"rgba(59,130,246,0.22)"}
         icon = "🚩"
-
-    c  = color_map.get(sev, "#6b7280")
-    bg = bg_map.get(sev, "transparent")
-    bd = border_map.get(sev, "#1a2540")
-
-    st.markdown(
-        f'<div class="flag-card" style="background:{bg};border:1px solid {bd};">'
-        f'<div class="flag-sev" style="color:{c};">{icon} {sev}</div>'
-        f'<div class="flag-title">{title}</div>'
-        f'<div class="flag-detail">{detail}</div>'
-        f'</div>',
-        unsafe_allow_html=True)
-
-    if not evidence:
-        return
-
-    # Group evidence by panel
+    c  = color_map.get(sev,"#6b7280")
+    bg = bg_map.get(sev,"transparent")
+    bd = border_map.get(sev,"#1a2540")
+    st.markdown(f'<div class="flag-card" style="background:{bg};border:1px solid {bd};">'
+                f'<div class="flag-sev" style="color:{c};">{icon} {sev}</div>'
+                f'<div class="flag-title">{title}</div>'
+                f'<div class="flag-detail">{detail}</div></div>', unsafe_allow_html=True)
+    if not evidence: return
     panels_info = {}
     for ev in evidence:
         p = ev["panel"]
-        if p not in panels_info:
-            panels_info[p] = {"labels": set(), "type_map": {}}
-        panels_info[p]["labels"].add(ev["label"])
-        panels_info[p]["type_map"][ev["label"]] = ev["highlight"]
-
+        if p not in panels_info: panels_info[p] = {"labels":set(),"type_map":{}}
+        panels_info[p]["labels"].add(ev["label"]); panels_info[p]["type_map"][ev["label"]] = ev["highlight"]
     st.markdown('<div class="ev-lede">↳ Evidence in financial statements</div>', unsafe_allow_html=True)
     cols = st.columns(3)
-    for i, pk in enumerate(["BS", "PL", "CF"]):
+    for i, pk in enumerate(["BS","PL","CF"]):
         with cols[i]:
-            info = panels_info.get(pk, {"labels": set(), "type_map": {}})
+            info = panels_info.get(pk, {"labels":set(),"type_map":{}})
             render_stmt_panel(pk, data, info["labels"], info["type_map"])
-
-    # Charts: prefer dual-series if there are 2+ series, else individual bars
-    ev_with_series = [e for e in evidence if e.get("series") is not None and
-                      not e["series"].dropna().empty]
-
+    ev_with_series = [e for e in evidence if e.get("series") is not None and not e["series"].dropna().empty]
     if len(ev_with_series) >= 2:
-        # Check if we can make a meaningful dual-series chart
         e1, e2 = ev_with_series[0], ev_with_series[1]
-        dual_fig = make_dual_trend_chart(
-            e1["series"], e1["label"],
-            e2["series"], e2["label"],
-            f"{e1['label']} vs {e2['label']}"
-        )
+        dual_fig = make_dual_trend_chart(e1["series"],e1["label"],e2["series"],e2["label"],f"{e1['label']} vs {e2['label']}")
         remaining = ev_with_series[2:]
     else:
-        dual_fig = None
-        remaining = ev_with_series
-
+        dual_fig = None; remaining = ev_with_series
     if dual_fig:
-        chart_cols = st.columns([2, 1] if remaining else [1])
-        chart_cols[0].plotly_chart(
-            dual_fig, use_container_width=True,
-            config={"displayModeBar": False, "staticPlot": False},
-            key=f"dual_{unique_key}"
-        )
+        chart_cols = st.columns([2,1] if remaining else [1])
+        chart_cols[0].plotly_chart(dual_fig, use_container_width=True, config={"displayModeBar":False}, key=f"dual_{unique_key}")
         for i, ev in enumerate(remaining[:1]):
-            fig = make_trend_bar(ev["series"], ev["label"], ev["highlight"])
-            if fig:
-                chart_cols[1].plotly_chart(
-                    fig, use_container_width=True,
-                    config={"displayModeBar": False},
-                    key=f"bar_{unique_key}_{i}"
-                )
+            fig = make_trend_bar(ev["series"],ev["label"],ev["highlight"])
+            if fig: chart_cols[1].plotly_chart(fig, use_container_width=True, config={"displayModeBar":False}, key=f"bar_{unique_key}_{i}")
     else:
-        chart_cols = st.columns(min(3, len(ev_with_series))) if ev_with_series else []
+        chart_cols = st.columns(min(3,len(ev_with_series))) if ev_with_series else []
         for i, ev in enumerate(ev_with_series[:3]):
-            fig = make_trend_bar(ev["series"], ev["label"], ev["highlight"])
-            if fig:
-                chart_cols[i].plotly_chart(
-                    fig, use_container_width=True,
-                    config={"displayModeBar": False},
-                    key=f"bar_{unique_key}_{i}"
-                )
-
+            fig = make_trend_bar(ev["series"],ev["label"],ev["highlight"])
+            if fig: chart_cols[i].plotly_chart(fig, use_container_width=True, config={"displayModeBar":False}, key=f"bar_{unique_key}_{i}")
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
-
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def analyse_ticker(ticker):
     data = get_company_data(ticker)
     if data is None: return None
     risk_flags, manip_flags, risk_score, manip_score = run_all_checks(data)
-    return {**data, "risk_flags": risk_flags, "manip_flags": manip_flags,
-            "risk_score": risk_score, "manip_score": manip_score}
+    return {**data, "risk_flags":risk_flags, "manip_flags":manip_flags, "risk_score":risk_score, "manip_score":manip_score}
 
 
-# ── Bootstrap ─────────────────────────────────────────────────────
-
+# ═══════════════════════════════════════════════════════════════
+#  BOOTSTRAP
+# ═══════════════════════════════════════════════════════════════
 with st.spinner("Loading NSE company list…"):
     ALL_COMPANIES = load_nse_company_list()
-
 _fallback_mode = len(ALL_COMPANIES) < 500
 
-# ── HERO ──────────────────────────────────────────────────────────
-st.markdown(f"""
-<div class="hero">
-  <div class="hero-eyebrow">Forensic Finance</div>
-  <div class="hero-title">India <span class="accent">Red Flag</span> <span class="dim">/</span> Dashboard</div>
-  <div class="hero-meta">
-    <span class="hero-chip live">NSE Live</span>
-    <span class="hero-chip">{len(ALL_COMPANIES):,} companies</span>
-    <span class="hero-chip">7 risk checks</span>
-    <span class="hero-chip">11 manip. signals</span>
-    <span class="hero-chip">{datetime.now().strftime('%d %b %Y · %I:%M %p')}</span>
-  </div>
-</div>
-""", unsafe_allow_html=True)
 
-if _fallback_mode:
-    st.warning(
-        "⚠️ Could not reach NSE or GitHub mirrors. Showing ~65 major companies. "
-        "You can still type any NSE ticker directly in the text box below.",
-        icon="⚠️"
+# ═══════════════════════════════════════════════════════════════
+#  PAGE 1 — LANDING
+# ═══════════════════════════════════════════════════════════════
+if st.session_state["current_page"] == "landing":
+
+    TICKER_ITEMS = ["Forensic Finance", "NSE Listed", "7 Risk Checks", "11 Manipulation Signals",
+                    "Beneish M-Score", "Altman Z-Score", "Sector Scan", "Deep Research",
+                    "Governance Intelligence", "Concall Analysis"] * 4
+
+    ticker_html = "".join(
+        f'<span class="ticker-item"><span class="ticker-dot"></span>{t}</span>'
+        for t in TICKER_ITEMS
     )
 
-tab_search, tab_sector, tab_deep, tab_about = st.tabs([
-    "🔍  Search & Analyse",
-    "📊  Sector Scanner",
-    "🔬  Deep Research",
-    "ℹ️  About",
-])
+    st.markdown(f"""
+    <div class="landing-grid"></div>
+    <div class="glow-red"></div>
+    <div class="glow-purple"></div>
 
-# ═══════════════════════════════════════════════════════════════════
-#  TAB 1 — SEARCH & ANALYSE
-# ═══════════════════════════════════════════════════════════════════
-with tab_search:
-    st.markdown('<div class="search-panel">', unsafe_allow_html=True)
-    st.markdown('<div class="panel-label">Search companies</div>', unsafe_allow_html=True)
+    <div class="landing-wrap">
+      <div class="hero-content">
+        <div class="eyebrow-row">
+          <span class="eyebrow-line"></span>
+          <span class="eyebrow-text">India Equity Forensics</span>
+        </div>
+
+        <div class="hero-title">
+          Financial<br>
+          <em>Shenanigans</em><br>
+          <span class="dim">/ Detector</span>
+        </div>
+
+        <p class="hero-subtitle">
+          Institutional-grade red flag analysis for NSE-listed companies.
+          Uncover earnings manipulation, balance sheet stress, and governance risks
+          before they become headlines.
+        </p>
+      </div>
+
+      <div class="stat-strip">
+        <div class="stat-cell">
+          <div class="stat-num">{len(ALL_COMPANIES):,}</div>
+          <div class="stat-label">NSE Companies</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-num">18</div>
+          <div class="stat-label">Forensic Checks</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-num">2</div>
+          <div class="stat-label">Academic Models</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-num">Live</div>
+          <div class="stat-label">NSE Data Feed</div>
+        </div>
+      </div>
+
+      <div class="scroll-hint">
+        <div class="scroll-caret" onclick="document.getElementById('nav-anchor').scrollIntoView({{behavior:'smooth'}})">
+          <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </div>
+      </div>
+
+      <div class="ticker-strip">
+        <div class="ticker-inner">
+          {ticker_html}
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div id="nav-anchor"></div>', unsafe_allow_html=True)
+
+    # ── CTA button ──
+    col_l, col_c, col_r = st.columns([2, 1, 2])
+    with col_c:
+        if st.button("Analyse Companies →", type="primary", use_container_width=True, key="landing_cta"):
+            st.session_state["current_page"] = "nav"
+            st.rerun()
+
+    # ── About strip on landing ──
+    st.markdown("""
+    <div style="height:3rem;"></div>
+    <div class="about-strip">
+      <div class="about-grid">
+        <div>
+          <div class="about-col-title">What this does</div>
+          <div class="about-col-body">
+            Applies 7 financial risk checks and 11 manipulation signal detectors
+            to any NSE-listed company. Combines classical forensic models —
+            Beneish M-Score, Altman Z-Score — with AI-powered governance and
+            concall intelligence.
+          </div>
+        </div>
+        <div>
+          <div class="about-col-title">Data sources</div>
+          <div class="about-col-body">
+            Financial statements via Yahoo Finance (annual &amp; quarterly).
+            Governance events via DuckDuckGo search. Concall coverage via
+            public earnings press. NSE company list from archives.nseindia.com.
+          </div>
+        </div>
+        <div>
+          <div class="about-col-title">Disclaimer</div>
+          <div class="about-col-body">
+            Not investment advice. Data may lag official BSE/NSE filings.
+            Always cross-check with SEBI-registered advisors before acting on
+            any output from this tool.
+          </div>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  PAGE 2 — NAVIGATION (Feature Cards)
+# ═══════════════════════════════════════════════════════════════
+elif st.session_state["current_page"] == "nav":
+
+    st.markdown("""
+    <div class="nav-top-bar">
+      <div class="nav-logo">Financial <em>Shenanigans</em></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    _, back_col, _ = st.columns([4, 1, 4])
+    with back_col:
+        if st.button("← Home", key="nav_back"):
+            st.session_state["current_page"] = "landing"
+            st.rerun()
+
+    st.markdown("""
+    <div class="nav-hero-text">
+      <div class="nav-section-label">Choose your tool</div>
+      <div class="nav-heading">Where do you want<br>to <em>dig</em> today?</div>
+      <p class="nav-subtext">Three forensic lenses. Each reveals a different layer of risk hiding inside a company's numbers.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Feature card click targets
+    col1, col2, col3 = st.columns([1.4, 1, 1], gap="small")
+
+    with col1:
+        st.markdown("""
+        <div class="feat-card primary">
+          <div class="feat-num">01</div>
+          <div class="feat-icon red">🔍</div>
+          <div class="feat-title">Research &<br>Analysis</div>
+          <div class="feat-desc">
+            Search any NSE company and run the full 18-point forensic check.
+            Compare multiple companies side-by-side.
+          </div>
+          <div class="feat-tags">
+            <span class="feat-tag">7 Risk Checks</span>
+            <span class="feat-tag">11 Manip Signals</span>
+            <span class="feat-tag">Dual Score</span>
+            <span class="feat-tag">Excel Export</span>
+          </div>
+          <div class="feat-arrow">
+            <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Open Research & Analysis →", key="card_search", use_container_width=True, type="primary"):
+            st.session_state["current_page"] = "search"
+            st.rerun()
+
+    with col2:
+        st.markdown("""
+        <div class="feat-card">
+          <div class="feat-num">02</div>
+          <div class="feat-icon purple">📊</div>
+          <div class="feat-title">Sector<br>Scanner</div>
+          <div class="feat-desc">
+            Scan an entire sector at once. Ranks every company by risk so you know where to look.
+          </div>
+          <div class="feat-tags">
+            <span class="feat-tag">10 Sectors</span>
+            <span class="feat-tag">Heatmap View</span>
+            <span class="feat-tag">Batch Analysis</span>
+          </div>
+          <div class="feat-arrow">
+            <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Open Sector Scanner →", key="card_sector", use_container_width=True):
+            st.session_state["current_page"] = "sector"
+            st.rerun()
+
+    with col3:
+        st.markdown("""
+        <div class="feat-card">
+          <div class="feat-num">03</div>
+          <div class="feat-icon blue">🔬</div>
+          <div class="feat-title">Deep<br>Research</div>
+          <div class="feat-desc">
+            AI-powered deep dive. Beneish M-Score, Altman Z-Score, governance scan, and concall intelligence.
+          </div>
+          <div class="feat-tags">
+            <span class="feat-tag">Beneish M-Score</span>
+            <span class="feat-tag">Altman Z-Score</span>
+            <span class="feat-tag">Governance AI</span>
+            <span class="feat-tag">Concall Intel</span>
+          </div>
+          <div class="feat-arrow">
+            <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Open Deep Research →", key="card_deep", use_container_width=True):
+            st.session_state["current_page"] = "deep"
+            st.rerun()
+
+    # About strip
+    st.markdown("""
+    <div style="height:4rem;"></div>
+    <div class="about-strip">
+      <div class="about-grid">
+        <div>
+          <div class="about-col-title">Scoring system</div>
+          <div class="about-col-body">
+            HIGH flags = 2 pts · MEDIUM = 1 pt · LOW = 0 pts.
+            Financial Risk and Manipulation Signal scores each capped at 10.
+            Composite Deep Research score weights six dimensions.
+          </div>
+        </div>
+        <div>
+          <div class="about-col-title">Chart legend</div>
+          <div class="about-col-body">
+            Red bars — value rising when it shouldn't (debt, receivables).
+            Amber bars — value falling when it shouldn't (CFO, margins).
+            Blue bars — reference metric. Dotted line = OLS trendline.
+          </div>
+        </div>
+        <div>
+          <div class="about-col-title">Forensic models</div>
+          <div class="about-col-body">
+            Beneish M-Score: threshold &gt; −1.78 = likely manipulator.
+            Altman Z-Score: &lt;1.81 distress zone · 1.81–2.99 grey zone.
+            Less reliable for banks and NBFCs.
+          </div>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  PAGE 3a — SEARCH & ANALYSE
+# ═══════════════════════════════════════════════════════════════
+elif st.session_state["current_page"] == "search":
+
+    # Top bar
+    st.markdown('<div class="work-header"><div class="work-title-bar">Financial <em>Shenanigans</em> · Research &amp; Analysis</div></div>', unsafe_allow_html=True)
+    hcol1, hcol2 = st.columns([5, 1])
+    with hcol2:
+        if st.button("← Back", key="search_back"):
+            st.session_state["current_page"] = "nav"; st.rerun()
+
+    st.markdown('<div style="padding: 1.5rem 1rem 0;">', unsafe_allow_html=True)
+
+    if _fallback_mode:
+        st.warning("⚠️ Could not reach NSE. Showing ~65 major companies. You can type any NSE ticker directly.", icon="⚠️")
+
     col1, col2 = st.columns([3, 1])
     with col1:
-        selected_names = st.multiselect(
-            "Company name",
-            options=sorted(ALL_COMPANIES.keys()),
-            placeholder="Type to search by name…",
-        )
-        manual = st.text_input(
-            "Or enter NSE tickers (comma-separated)",
-            placeholder="e.g. TATACOMM, ZOMATO, PAYTM"
-        )
+        selected_names = st.multiselect("Company name", options=sorted(ALL_COMPANIES.keys()), placeholder="Type to search by name…")
+        manual = st.text_input("Or enter NSE tickers (comma-separated)", placeholder="e.g. TATACOMM, ZOMATO, PAYTM")
     with col2:
         st.caption("💡 Select multiple to compare")
         st.caption("📌 No .NS suffix needed")
-    st.markdown('</div>', unsafe_allow_html=True)
 
     tickers = []
-    if selected_names:
-        tickers += [ALL_COMPANIES[n] for n in selected_names]
+    if selected_names: tickers += [ALL_COMPANIES[n] for n in selected_names]
     if manual.strip():
         for raw in [t.strip().upper() for t in manual.split(",") if t.strip()]:
             resolved = resolve_ticker(raw)
-            if resolved:
-                tickers.append(resolved)
-            else:
-                st.error(
-        f"❌ Could not fetch data for **{raw}**. "
-        f"Yahoo Finance may be rate-limiting. Try again in 30 seconds, "
-        f"or verify the ticker at nseindia.com"
-    )
+            if resolved: tickers.append(resolved)
+            else: st.error(f"❌ Could not fetch data for **{raw}**. Yahoo Finance may be rate-limiting. Try again in 30 seconds.")
 
     if tickers and st.button(f"Analyse {len(tickers)} company/companies →", type="primary"):
-        results = []
-        prog = st.progress(0)
+        results = []; prog = st.progress(0)
         for i, t in enumerate(tickers):
-            prog.progress((i + 1) / len(tickers), f"Fetching {t}…")
+            prog.progress((i+1)/len(tickers), f"Fetching {t}…")
             r = analyse_ticker(t)
-            if r:
-                results.append(r)
-            else:
-                st.error(f"No data for **{t}**")
+            if r: results.append(r)
+            else: st.error(f"No data for **{t}**")
             time.sleep(0.3)
         prog.empty()
-
-        if not results:
-            st.error("No results returned. Try different tickers.")
-            st.stop()
-
-        results.sort(key=lambda x: x["risk_score"] + x["manip_score"], reverse=True)
+        if not results: st.error("No results returned."); st.stop()
+        results.sort(key=lambda x: x["risk_score"]+x["manip_score"], reverse=True)
         st.session_state["all_results_store"] = results
 
-        # Summary cards
         st.markdown('<div class="sec-head">Risk Summary</div>', unsafe_allow_html=True)
         for r in results:
-            st.markdown(
-                dual_score_card_html(r["ticker"], r["name"], r["risk_score"],
-                                     r["manip_score"], r["risk_flags"], r["manip_flags"]),
-                unsafe_allow_html=True)
+            st.markdown(dual_score_card_html(r["ticker"],r["name"],r["risk_score"],r["manip_score"],r["risk_flags"],r["manip_flags"]), unsafe_allow_html=True)
         st.divider()
 
         for r in results:
             risk_icon  = "🔴" if r["risk_score"]  >= 6 else "🟡" if r["risk_score"]  >= 3 else "🟢"
             manip_icon = "🟣" if r["manip_score"] >= 6 else "🔵" if r["manip_score"] >= 3 else "⚪"
-
-            with st.expander(
-                f"{risk_icon}{manip_icon}  {r['name']}  ({r['ticker'].replace('.NS','')})  "
-                f"|  Risk: {r['risk_score']}/10  ·  Manip: {r['manip_score']}/10",
-                expanded=(r["risk_score"] >= 6 or r["manip_score"] >= 6)
-            ):
-                c1, c2, c3, c4 = st.columns(4)
+            with st.expander(f"{risk_icon}{manip_icon}  {r['name']}  ({r['ticker'].replace('.NS','')})  |  Risk: {r['risk_score']}/10  ·  Manip: {r['manip_score']}/10",
+                             expanded=(r["risk_score"]>=6 or r["manip_score"]>=6)):
+                c1,c2,c3,c4 = st.columns(4)
                 with c1:
                     st.metric("Market Cap", f"₹{r['mcap_cr']:,.0f} Cr" if r["mcap_cr"] else "—")
                     st.metric("Debt / Equity", f"{r['de_ratio']:.2f}x" if r["de_ratio"] else "—")
@@ -1761,217 +1919,114 @@ with tab_search:
                     st.metric("Promoter Holding", f"{r['promoter_holding_pct']:.1f}%" if r["promoter_holding_pct"] else "—")
                     st.metric("Sector", r["sector"])
                 with c3:
-                    st.plotly_chart(
-                        risk_gauge(r["risk_score"], _score_color(r["risk_score"]), "Financial Risk"),
-                        use_container_width=True, config={"displayModeBar": False},
-                        key=f"gauge_risk_{r['ticker']}")
+                    st.plotly_chart(risk_gauge(r["risk_score"],_score_color(r["risk_score"]),"Financial Risk"),
+                                    use_container_width=True, config={"displayModeBar":False}, key=f"gauge_risk_{r['ticker']}")
                     st.caption("🔴 Financial Risk Score")
                 with c4:
-                    st.plotly_chart(
-                        risk_gauge(r["manip_score"], _manip_color(r["manip_score"]), "Manipulation Signal"),
-                        use_container_width=True, config={"displayModeBar": False},
-                        key=f"gauge_manip_{r['ticker']}")
+                    st.plotly_chart(risk_gauge(r["manip_score"],_manip_color(r["manip_score"]),"Manipulation Signal"),
+                                    use_container_width=True, config={"displayModeBar":False}, key=f"gauge_manip_{r['ticker']}")
                     st.caption("🟣 Manipulation Signal Score")
-
-                # ── Risk Flags ──
-                st.markdown(
-                    f'<div class="bucket-header risk">'
-                    f'<span class="b-dot risk"></span>'
-                    f'Financial Risk Flags &nbsp;({len(r["risk_flags"])})'
-                    f'</div>', unsafe_allow_html=True)
-                if not r["risk_flags"]:
-                    st.success("✅ No financial risk flags triggered.")
+                st.markdown(f'<div class="bucket-header risk"><span class="b-dot risk"></span>Financial Risk Flags &nbsp;({len(r["risk_flags"])})</div>', unsafe_allow_html=True)
+                if not r["risk_flags"]: st.success("✅ No financial risk flags triggered.")
                 else:
-                    for fi, flag in enumerate(r["risk_flags"]):
-                        render_flag(flag, r, unique_key=f"s_risk_{r['ticker']}_{fi}", flag_type="RISK")
-
-                # ── Manipulation Signals ──
-                st.markdown(
-                    f'<div class="bucket-header manip">'
-                    f'<span class="b-dot manip"></span>'
-                    f'Manipulation Warning Signals &nbsp;({len(r["manip_flags"])})'
-                    f'</div>', unsafe_allow_html=True)
-                if not r["manip_flags"]:
-                    st.success("✅ No manipulation signals detected.")
+                    for fi, flag in enumerate(r["risk_flags"]): render_flag(flag, r, unique_key=f"s_risk_{r['ticker']}_{fi}", flag_type="RISK")
+                st.markdown(f'<div class="bucket-header manip"><span class="b-dot manip"></span>Manipulation Warning Signals &nbsp;({len(r["manip_flags"])})</div>', unsafe_allow_html=True)
+                if not r["manip_flags"]: st.success("✅ No manipulation signals detected.")
                 else:
-                    for fi, flag in enumerate(r["manip_flags"]):
-                        render_flag(flag, r, unique_key=f"s_manip_{r['ticker']}_{fi}", flag_type="MANIP")
+                    for fi, flag in enumerate(r["manip_flags"]): render_flag(flag, r, unique_key=f"s_manip_{r['ticker']}_{fi}", flag_type="MANIP")
 
-        # Download report
-        df_report = pd.DataFrame([{
-            "Ticker":        r["ticker"].replace(".NS", ""),
-            "Company":       r["name"],
-            "Sector":        r["sector"],
-            "Mkt Cap Cr":    r["mcap_cr"],
-            "Risk Score":    r["risk_score"],
-            "Manip Score":   r["manip_score"],
-            "Risk Flags":    " | ".join([f"{f[1]}: {f[2]}" for f in r["risk_flags"]]) or "None",
-            "Manip Signals": " | ".join([f"{f[1]}: {f[2]}" for f in r["manip_flags"]]) or "None",
-        } for r in results])
-        buf = io.BytesIO()
-        df_report.to_excel(buf, index=False)
+        df_report = pd.DataFrame([{"Ticker":r["ticker"].replace(".NS",""),"Company":r["name"],"Sector":r["sector"],
+                                    "Mkt Cap Cr":r["mcap_cr"],"Risk Score":r["risk_score"],"Manip Score":r["manip_score"],
+                                    "Risk Flags":" | ".join([f"{f[1]}: {f[2]}" for f in r["risk_flags"]]) or "None",
+                                    "Manip Signals":" | ".join([f"{f[1]}: {f[2]}" for f in r["manip_flags"]]) or "None"}
+                                   for r in results])
+        buf = io.BytesIO(); df_report.to_excel(buf, index=False)
         st.download_button("📥 Download Excel Report", buf.getvalue(), file_name="red_flags.xlsx")
 
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# ═══════════════════════════════════════════════════════════════════
-#  TAB 2 — SECTOR SCANNER
-# ═══════════════════════════════════════════════════════════════════
-with tab_sector:
+
+# ═══════════════════════════════════════════════════════════════
+#  PAGE 3b — SECTOR SCANNER
+# ═══════════════════════════════════════════════════════════════
+elif st.session_state["current_page"] == "sector":
+
+    st.markdown('<div class="work-header"><div class="work-title-bar">Financial <em>Shenanigans</em> · Sector Scanner</div></div>', unsafe_allow_html=True)
+    hcol1, hcol2 = st.columns([5, 1])
+    with hcol2:
+        if st.button("← Back", key="sector_back"):
+            st.session_state["current_page"] = "nav"; st.rerun()
+
+    st.markdown('<div style="padding: 1.5rem 1rem 0;">', unsafe_allow_html=True)
     st.markdown('<div class="sec-head">Sector-wise Health Scan</div>', unsafe_allow_html=True)
 
     SECTOR_GROUPS = {
-        "🏦 Banks":          ["HDFCBANK","ICICIBANK","AXISBANK","YESBANK","KOTAKBANK",
-                              "SBIN","INDUSINDBK","FEDERALBNK","BANDHANBNK","IDFCFIRSTB"],
-        "💻 IT":             ["TCS","INFY","WIPRO","HCLTECH","TECHM",
-                              "LTIM","MPHASIS","PERSISTENT","COFORGE","OFSS"],
-        "⚡ Power & Energy": ["NTPC","POWERGRID","ADANIPOWER","TATAPOWER","CESC",
-                              "TORNTPOWER","NHPC","SJVN","JSWENERGY","RPOWER"],
-        "🏗️ Infrastructure": ["LT","ADANIPORTS","GMRINFRA","IRB","ASHOKA",
-                              "KNR","NBCC","RVNL","IRCON","PNC"],
-        "🚗 Auto":           ["MARUTI","TATAMOTORS","M&M","BAJAJ-AUTO","EICHERMOT",
-                              "HEROMOTOCO","ASHOKLEY","TVSMOTOR","MOTHERSON","BOSCHLTD"],
-        "💊 Pharma":         ["SUNPHARMA","DRREDDY","CIPLA","DIVISLAB","AUROPHARMA",
-                              "LUPIN","TORNTPHARM","ALKEM","IPCALAB","GLENMARK"],
-        "💰 NBFCs":          ["BAJFINANCE","BAJAJFINSV","CHOLAFIN","MUTHOOTFIN","MANAPPURAM",
-                              "LTFH","SHRIRAMFIN","ABCAPITAL","IIFL","POONAWALLA"],
-        "🛒 FMCG":           ["HINDUNILVR","ITC","NESTLEIND","BRITANNIA","DABUR",
-                              "MARICO","COLPAL","GODREJCP","EMAMILTD","TATACONSUM"],
-        "🏠 Real Estate":    ["DLF","GODREJPROP","OBEROIRLTY","PRESTIGE","PHOENIXLTD",
-                              "BRIGADE","SOBHA","MAHLIFE","LODHA","SUNTECK"],
-        "🔩 Metals":         ["TATASTEEL","JSWSTEEL","HINDALCO","SAIL","VEDL",
-                              "NMDC","JINDALSTEL","APLAPOLLO","RATNAMANI","HINDCOPPER"],
+        "🏦 Banks":          ["HDFCBANK","ICICIBANK","AXISBANK","YESBANK","KOTAKBANK","SBIN","INDUSINDBK","FEDERALBNK","BANDHANBNK","IDFCFIRSTB"],
+        "💻 IT":             ["TCS","INFY","WIPRO","HCLTECH","TECHM","LTIM","MPHASIS","PERSISTENT","COFORGE","OFSS"],
+        "⚡ Power & Energy": ["NTPC","POWERGRID","ADANIPOWER","TATAPOWER","CESC","TORNTPOWER","NHPC","SJVN","JSWENERGY","RPOWER"],
+        "🏗️ Infrastructure": ["LT","ADANIPORTS","GMRINFRA","IRB","ASHOKA","KNR","NBCC","RVNL","IRCON","PNC"],
+        "🚗 Auto":           ["MARUTI","TATAMOTORS","M&M","BAJAJ-AUTO","EICHERMOT","HEROMOTOCO","ASHOKLEY","TVSMOTOR","MOTHERSON","BOSCHLTD"],
+        "💊 Pharma":         ["SUNPHARMA","DRREDDY","CIPLA","DIVISLAB","AUROPHARMA","LUPIN","TORNTPHARM","ALKEM","IPCALAB","GLENMARK"],
+        "💰 NBFCs":          ["BAJFINANCE","BAJAJFINSV","CHOLAFIN","MUTHOOTFIN","MANAPPURAM","LTFH","SHRIRAMFIN","ABCAPITAL","IIFL","POONAWALLA"],
+        "🛒 FMCG":           ["HINDUNILVR","ITC","NESTLEIND","BRITANNIA","DABUR","MARICO","COLPAL","GODREJCP","EMAMILTD","TATACONSUM"],
+        "🏠 Real Estate":    ["DLF","GODREJPROP","OBEROIRLTY","PRESTIGE","PHOENIXLTD","BRIGADE","SOBHA","MAHLIFE","LODHA","SUNTECK"],
+        "🔩 Metals":         ["TATASTEEL","JSWSTEEL","HINDALCO","SAIL","VEDL","NMDC","JINDALSTEL","APLAPOLLO","RATNAMANI","HINDCOPPER"],
     }
 
     chosen = st.selectbox("Select sector", list(SECTOR_GROUPS.keys()))
     if st.button("Scan Sector →", type="primary"):
         sector_tickers = [f"{t}.NS" for t in SECTOR_GROUPS[chosen]]
-        results = []
-        prog = st.progress(0)
+        results = []; prog = st.progress(0)
         for i, sym in enumerate(sector_tickers):
-            prog.progress((i + 1) / len(sector_tickers), f"Scanning {sym}…")
+            prog.progress((i+1)/len(sector_tickers), f"Scanning {sym}…")
             r = analyse_ticker(sym)
             if r: results.append(r)
             time.sleep(0.2)
         prog.empty()
-
-        if not results:
-            st.warning("No data returned.")
-            st.stop()
-
-        results.sort(key=lambda x: x["risk_score"] + x["manip_score"], reverse=True)
+        if not results: st.warning("No data returned."); st.stop()
+        results.sort(key=lambda x: x["risk_score"]+x["manip_score"], reverse=True)
         st.session_state["all_results_store"] = results
-
-        # Sector heatmap — quick overview table
         st.markdown('<div class="sec-head">Sector Overview</div>', unsafe_allow_html=True)
         overview_data = []
         for r in results:
-            risk_emoji  = "🔴" if r["risk_score"]  >= 6 else "🟡" if r["risk_score"]  >= 3 else "🟢"
-            manip_emoji = "🟣" if r["manip_score"] >= 6 else "🔵" if r["manip_score"] >= 3 else "⚪"
-            overview_data.append({
-                "Company":     r["name"][:22],
-                "Risk":        f"{risk_emoji} {r['risk_score']}/10",
-                "Manip.":      f"{manip_emoji} {r['manip_score']}/10",
-                "Mkt Cap":     fmt_cr(r["mcap_cr"]),
-                "D/E":         f"{r['de_ratio']:.2f}x" if r["de_ratio"] else "—",
-                "Promoter %":  f"{r['promoter_holding_pct']:.1f}%" if r["promoter_holding_pct"] else "—",
-            })
-        st.dataframe(
-            pd.DataFrame(overview_data),
-            use_container_width=True,
-            hide_index=True,
-        )
+            re = "🔴" if r["risk_score"]>=6 else "🟡" if r["risk_score"]>=3 else "🟢"
+            me = "🟣" if r["manip_score"]>=6 else "🔵" if r["manip_score"]>=3 else "⚪"
+            overview_data.append({"Company":r["name"][:22],"Risk":f"{re} {r['risk_score']}/10","Manip.":f"{me} {r['manip_score']}/10",
+                                   "Mkt Cap":fmt_cr(r["mcap_cr"]),"D/E":f"{r['de_ratio']:.2f}x" if r["de_ratio"] else "—",
+                                   "Promoter %":f"{r['promoter_holding_pct']:.1f}%" if r["promoter_holding_pct"] else "—"})
+        st.dataframe(pd.DataFrame(overview_data), use_container_width=True, hide_index=True)
         st.divider()
-
         for r in results:
-            risk_icon  = "🔴" if r["risk_score"]  >= 6 else "🟡" if r["risk_score"]  >= 3 else "🟢"
-            manip_icon = "🟣" if r["manip_score"] >= 6 else "🔵" if r["manip_score"] >= 3 else "⚪"
-            with st.expander(
-                f"{risk_icon}{manip_icon}  {r['name']}  "
-                f"|  Risk: {r['risk_score']}/10  ·  Manip: {r['manip_score']}/10"
-            ):
-                c1, c2, c3 = st.columns(3)
+            ri = "🔴" if r["risk_score"]>=6 else "🟡" if r["risk_score"]>=3 else "🟢"
+            mi = "🟣" if r["manip_score"]>=6 else "🔵" if r["manip_score"]>=3 else "⚪"
+            with st.expander(f"{ri}{mi}  {r['name']}  |  Risk: {r['risk_score']}/10  ·  Manip: {r['manip_score']}/10"):
+                c1,c2,c3 = st.columns(3)
                 c1.metric("Market Cap", f"₹{r['mcap_cr']:,.0f} Cr" if r["mcap_cr"] else "—")
-                c2.metric("D/E",        f"{r['de_ratio']:.2f}x" if r["de_ratio"] else "—")
-                c3.metric("Promoter",   f"{r['promoter_holding_pct']:.1f}%")
-
-                st.markdown(
-                    f'<div class="bucket-header risk">'
-                    f'<span class="b-dot risk"></span>'
-                    f'Financial Risk Flags &nbsp;({len(r["risk_flags"])})'
-                    f'</div>', unsafe_allow_html=True)
-                if not r["risk_flags"]:
-                    st.success("✅ No financial risk flags.")
+                c2.metric("D/E", f"{r['de_ratio']:.2f}x" if r["de_ratio"] else "—")
+                c3.metric("Promoter", f"{r['promoter_holding_pct']:.1f}%")
+                st.markdown(f'<div class="bucket-header risk"><span class="b-dot risk"></span>Financial Risk Flags &nbsp;({len(r["risk_flags"])})</div>', unsafe_allow_html=True)
+                if not r["risk_flags"]: st.success("✅ No financial risk flags.")
                 else:
-                    for fi, flag in enumerate(r["risk_flags"]):
-                        render_flag(flag, r, unique_key=f"sec_risk_{r['ticker']}_{fi}", flag_type="RISK")
-
-                st.markdown(
-                    f'<div class="bucket-header manip">'
-                    f'<span class="b-dot manip"></span>'
-                    f'Manipulation Warning Signals &nbsp;({len(r["manip_flags"])})'
-                    f'</div>', unsafe_allow_html=True)
-                if not r["manip_flags"]:
-                    st.success("✅ No manipulation signals.")
+                    for fi, flag in enumerate(r["risk_flags"]): render_flag(flag, r, unique_key=f"sec_risk_{r['ticker']}_{fi}", flag_type="RISK")
+                st.markdown(f'<div class="bucket-header manip"><span class="b-dot manip"></span>Manipulation Warning Signals &nbsp;({len(r["manip_flags"])})</div>', unsafe_allow_html=True)
+                if not r["manip_flags"]: st.success("✅ No manipulation signals.")
                 else:
-                    for fi, flag in enumerate(r["manip_flags"]):
-                        render_flag(flag, r, unique_key=f"sec_manip_{r['ticker']}_{fi}", flag_type="MANIP")
+                    for fi, flag in enumerate(r["manip_flags"]): render_flag(flag, r, unique_key=f"sec_manip_{r['ticker']}_{fi}", flag_type="MANIP")
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
-# ═══════════════════════════════════════════════════════════════════
-#  TAB 3 — ABOUT
-# ═══════════════════════════════════════════════════════════════════
-with tab_deep:
+# ═══════════════════════════════════════════════════════════════
+#  PAGE 3c — DEEP RESEARCH
+# ═══════════════════════════════════════════════════════════════
+elif st.session_state["current_page"] == "deep":
+
+    st.markdown('<div class="work-header"><div class="work-title-bar">Financial <em>Shenanigans</em> · Deep Research</div></div>', unsafe_allow_html=True)
+    hcol1, hcol2 = st.columns([5, 1])
+    with hcol2:
+        if st.button("← Back", key="deep_back"):
+            st.session_state["current_page"] = "nav"; st.rerun()
+
+    st.markdown('<div style="padding: 1.5rem 1rem 0;">', unsafe_allow_html=True)
     render_deep_research_selector(st.session_state.get("all_results_store", []))
-
-with tab_about:
-    st.markdown("""
-    <div style="max-width:720px;color:#6b7280;line-height:1.85;font-size:0.87rem;">
-
-    <div class="sec-head">Two-Track Scoring System</div>
-    <p>This dashboard separates two distinct concerns:</p>
-    <ul style="padding-left:1.2rem;margin-top:0.4rem;line-height:2;">
-      <li><strong style="color:#ef4444">🔴 Financial Risk Score (0–10)</strong> — balance sheet stress, solvency risk, and operational deterioration.</li>
-      <li><strong style="color:#a78bfa">🟣 Manipulation Signal Score (0–10)</strong> — probability of accounting shenanigans, earnings management, or misstatement.</li>
-    </ul>
-    <p>A company can score low on risk but high on manipulation — superficially healthy numbers may be hiding underlying problems.</p>
-
-    <div class="sec-head">🔴 Financial Risk Flags (7 checks)</div>
-    <ul style="padding-left:1.2rem;line-height:2;">
-      <li>Interest coverage ratio (EBIT / Interest)</li>
-      <li>Debt / Equity ratio (for non-financials)</li>
-      <li>Sustained net losses over multiple years</li>
-      <li>Revenue decline (3Y CAGR negative)</li>
-      <li>Debt growth alongside CFO decline</li>
-      <li>Inventory build-up vs revenue</li>
-      <li>Low promoter / insider holding</li>
-    </ul>
-
-    <div class="sec-head">🟣 Manipulation Warning Signals (11 checks)</div>
-    <ul style="padding-left:1.2rem;line-height:2;">
-      <li>CFO significantly below Operating Income (EBIT)</li>
-      <li>CFO / Net Profit divergence (earnings quality)</li>
-      <li>Negative CFO despite reported profits</li>
-      <li>Receivables growing faster than revenue</li>
-      <li>Revenue growth spike vs own historical trend</li>
-      <li>High Q4 revenue concentration</li>
-      <li>Unexplained operating margin surge</li>
-      <li>Working capital manipulation pattern</li>
-      <li>High goodwill relative to total assets</li>
-      <li>Large deferred tax fluctuations</li>
-      <li>CapEx exceeding CFO</li>
-    </ul>
-
-    <div class="sec-head">Chart Evidence Highlights</div>
-    <ul style="padding-left:1.2rem;line-height:2;">
-      <li><strong style="color:#ef4444">Red bars</strong> — value increasing when it shouldn't (debt, receivables)</li>
-      <li><strong style="color:#f59e0b">Amber bars</strong> — value decreasing when it shouldn't (CFO, margins)</li>
-      <li><strong style="color:#60a5fa">Blue bars</strong> — reference metric for context</li>
-      <li><strong style="color:#9ca3af">Dotted trendline</strong> — OLS regression over the visible data points</li>
-    </ul>
-
-    <div class="sec-head">Scoring</div>
-    <p>HIGH = 2 pts · MEDIUM = 1 pt · LOW = 0 pts · Each score capped at 10.</p>
-
-    <div class="sec-head">Disclaimer</div>
-    <p>Not investment advice. Data sourced from Yahoo Finance — may lag official filings. Always cross-check with BSE/NSE filings and consult a SEBI-registered advisor.</p>
-    </div>""", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
