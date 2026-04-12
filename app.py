@@ -659,11 +659,6 @@ def run_all_checks(data):
     return risk_flags, manip_flags, risk_score, manip_score
 
 
-"""
-UI PATCH — paste this into app.py, replacing SECTION 3 (UI LAYER) onwards.
-All data/analysis logic (Sections 1 & 2) is unchanged.
-"""
-
 # ============================================================
 #  SECTION 3 — UI LAYER  (New Landing + Navigation)
 #  Paste this into app.py replacing Section 3 onwards
