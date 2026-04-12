@@ -1,5 +1,10 @@
 # ============================================================
-#  INDIA RED FLAG DASHBOARD  —  app.py  (v3 — Enhanced UI)
+#  INDIA RED FLAG DASHBOARD  —  app.py  (v4 — UI Polish)
+#
+#  Changes from v3:
+#  1. Nav cards: centered text, larger fonts, morph transition
+#  2. Financial tables: Outfit font, warmer & reader-friendly
+#  3. Charts: column-line combo with dotted trend lines
 #
 #  SECTION 1 — DATA LAYER
 #  SECTION 2 — ANALYSIS LAYER
@@ -46,12 +51,10 @@ def load_nse_company_list():
                 company_dict[f"{name}  ({sym})"] = f"{sym}.NS"
         return company_dict if len(company_dict) > 500 else None
 
-    # ── PRIORITY 1: Local CSV file (most reliable) ──────────────────
-    # Place EQUITY_L.csv in the same folder as app.py
     local_paths = [
-        "EQUITY_L.csv",          # same folder as app.py
-        "./EQUITY_L.csv",        # explicit current directory
-        "data/EQUITY_L.csv",     # if you put it in a data/ subfolder
+        "EQUITY_L.csv",
+        "./EQUITY_L.csv",
+        "data/EQUITY_L.csv",
     ]
     for path in local_paths:
         if os.path.exists(path):
@@ -60,11 +63,10 @@ def load_nse_company_list():
                     text = f.read().strip()
                 result = _parse_csv_text(text)
                 if result:
-                    return result   # ✅ loaded from local file
+                    return result
             except Exception:
                 continue
 
-    # ── PRIORITY 2: Network sources (tried in order) ─────────────────
     sources = [
         {
             "url": "https://archives.nseindia.com/content/equities/EQUITY_L.csv",
@@ -113,7 +115,6 @@ def load_nse_company_list():
         except Exception:
             continue
 
-    # ── PRIORITY 3: Hardcoded fallback (~65 major companies) ─────────
     tickers = [
         ("Reliance Industries","RELIANCE"),("TCS","TCS"),("Infosys","INFY"),
         ("HDFC Bank","HDFCBANK"),("ICICI Bank","ICICIBANK"),("Wipro","WIPRO"),
@@ -159,16 +160,13 @@ def resolve_ticker(raw: str) -> str:
     return None
     
 def _safe_row(df, names):
-    """Return a Series keyed by 4-digit year strings (ascending), or None."""
     if df is None or df.empty: return None
     for name in names:
         if name in df.index:
             row = pd.to_numeric(df.loc[name], errors="coerce").dropna()
             if not row.empty:
-                # Normalise index to plain 4-digit year strings
                 new_idx = [str(idx)[:4] for idx in row.index]
                 row.index = new_idx
-                # Drop duplicate years, keep last (most recent filing)
                 row = row[~row.index.duplicated(keep="last")]
                 return row.sort_index()
     return None
@@ -186,7 +184,6 @@ def get_company_data(ticker: str):
     for attempt in range(3):
         try:
             t = yf.Ticker(ticker)
-            # history() is far more reliable than .info for Indian tickers
             hist = t.history(period="5d")
             if hist.empty:
                 if attempt < 2:
@@ -194,13 +191,11 @@ def get_company_data(ticker: str):
                     continue
                 return None
 
-            # Try fetching info — but don't rely on it for validation
             try:
                 info = t.info or {}
             except Exception:
                 info = {}
 
-            # Build a fallback name from the ticker if info is empty
             fallback_name = ticker.replace(".NS","").replace(".BO","")
             name = info.get("longName") or info.get("shortName") or fallback_name
 
@@ -209,7 +204,6 @@ def get_company_data(ticker: str):
             raw_cf   = t.cashflow
             raw_qpnl = t.quarterly_financials
 
-            # If all financial statements are empty, it's not useful
             if (raw_pnl is None or raw_pnl.empty) and \
                (raw_bs  is None or raw_bs.empty)  and \
                (raw_cf  is None or raw_cf.empty):
@@ -265,7 +259,6 @@ def get_company_data(ticker: str):
             except Exception:
                 pass
 
-            # Safe info field extraction with fallbacks
             def _safe_info(key, default=None):
                 try:
                     return info.get(key, default)
@@ -302,6 +295,7 @@ def get_company_data(ticker: str):
             return None
 
     return None
+
 # ============================================================
 #  SECTION 2 — ANALYSIS LAYER
 # ============================================================
@@ -660,8 +654,7 @@ def run_all_checks(data):
 
 
 # ============================================================
-#  SECTION 3 — UI LAYER  (New Landing + Navigation)
-#  Paste this into app.py replacing Section 3 onwards
+#  SECTION 3 — UI LAYER
 # ============================================================
 
 st.set_page_config(
@@ -680,7 +673,10 @@ if "current_page" not in st.session_state:
 # ── GLOBAL STYLES ─────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* ═══════════════════════════════════════════════════════════
+   FONT IMPORTS — Outfit added for financial table readability
+   ═══════════════════════════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -702,6 +698,53 @@ html, body, .stApp {
 
 /* ── HIDE DEFAULT STREAMLIT CHROME ── */
 #MainMenu, footer, header { visibility: hidden; }
+
+/* ═══════════════════════════════════════════════════════════
+   CHANGE 1B — TOP-TO-BOTTOM MORPH PAGE TRANSITION
+   ═══════════════════════════════════════════════════════════ */
+@keyframes morphDropIn {
+    0% {
+        opacity: 0;
+        transform: translateY(-48px) scale(0.975);
+        filter: blur(6px);
+    }
+    35% {
+        opacity: 0.7;
+        filter: blur(1.5px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        filter: blur(0px);
+    }
+}
+
+@keyframes cardCascade {
+    0% {
+        opacity: 0;
+        transform: translateY(-28px) scale(0.97);
+        filter: blur(3px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        filter: blur(0px);
+    }
+}
+
+.nav-page-wrapper {
+    animation: morphDropIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Staggered card cascade from top */
+.feat-card-c1 { animation: cardCascade 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.10s both; }
+.feat-card-c2 { animation: cardCascade 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.20s both; }
+.feat-card-c3 { animation: cardCascade 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.30s both; }
+
+/* Work pages also morph in */
+.work-page-wrapper {
+    animation: morphDropIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 
 /* ── LANDING HERO ── */
 .hero-eyebrow {
@@ -889,82 +932,102 @@ html, body, .stApp {
     margin-bottom: 3rem;
 }
 
-/* ── FEATURE CARDS ── */
+/* ══════════════════════════════════════════════════════════
+   CHANGE 1 — FEATURE CARDS: CENTERED TEXT + LARGER FONTS
+   ══════════════════════════════════════════════════════════ */
 .feat-card {
     border: 1px solid #0d1726;
     border-radius: 20px;
-    padding: 2.2rem 2rem 2.5rem;
+    padding: 2.4rem 2rem 2.6rem;
     background: #060a14;
     position: relative;
     overflow: hidden;
     height: 100%;
-    min-height: 380px;
-    transition: border-color 0.25s, transform 0.25s;
+    min-height: 400px;
+    transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
     cursor: default;
+    /* CENTER all text in the card */
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 .feat-card:hover {
     border-color: #1c2640;
-    transform: translateY(-3px);
+    transform: translateY(-4px);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
 }
 .feat-card-top-line {
     position: absolute;
     top: 0; left: 0; right: 0;
     height: 2px;
 }
-.feat-card-top-line.red    { background: linear-gradient(90deg, transparent, rgba(220,38,38,0.5), transparent); }
-.feat-card-top-line.purple { background: linear-gradient(90deg, transparent, rgba(139,92,246,0.5), transparent); }
-.feat-card-top-line.blue   { background: linear-gradient(90deg, transparent, rgba(59,130,246,0.5), transparent); }
+.feat-card-top-line.red    { background: linear-gradient(90deg, transparent, rgba(220,38,38,0.6), transparent); }
+.feat-card-top-line.purple { background: linear-gradient(90deg, transparent, rgba(139,92,246,0.6), transparent); }
+.feat-card-top-line.blue   { background: linear-gradient(90deg, transparent, rgba(59,130,246,0.6), transparent); }
 
 .feat-num {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.58rem;
+    font-size: 0.65rem;
     color: #1c2640;
     letter-spacing: 2px;
     margin-bottom: 1.8rem;
+    width: 100%;
+    text-align: center;
 }
 .feat-icon {
-    width: 46px;
-    height: 46px;
-    border-radius: 12px;
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 1.6rem;
-    font-size: 1.3rem;
+    margin: 0 auto 1.8rem;
+    font-size: 1.4rem;
 }
-.feat-icon.red    { background: rgba(220,38,38,0.12); }
-.feat-icon.purple { background: rgba(139,92,246,0.12); }
-.feat-icon.blue   { background: rgba(59,130,246,0.12); }
+.feat-icon.red    { background: rgba(220,38,38,0.14); }
+.feat-icon.purple { background: rgba(139,92,246,0.14); }
+.feat-icon.blue   { background: rgba(59,130,246,0.14); }
 
+/* Larger, centered title */
 .feat-title {
     font-family: 'DM Serif Display', serif;
-    font-size: 1.7rem;
+    font-size: 2.1rem;
     color: #e5e7eb;
-    letter-spacing: -0.5px;
-    line-height: 1.2;
-    margin-bottom: 0.9rem;
+    letter-spacing: -0.6px;
+    line-height: 1.18;
+    margin-bottom: 1rem;
+    text-align: center;
+    width: 100%;
 }
+/* Larger, more readable description */
 .feat-desc {
-    font-size: 0.88rem;
-    color: #2d3a55;
-    line-height: 1.8;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    color: #38506b;
+    line-height: 1.85;
     font-weight: 300;
     margin-bottom: 1.8rem;
+    text-align: center;
+    width: 100%;
 }
 .feat-tags {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 7px;
     margin-bottom: 1.8rem;
+    justify-content: center;
+    width: 100%;
 }
 .feat-tag {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.56rem;
-    color: #1c2640;
+    font-family: 'Outfit', 'DM Sans', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 500;
+    color: #2a3a55;
     border: 1px solid #0d1726;
-    padding: 4px 10px;
-    border-radius: 5px;
-    letter-spacing: 0.5px;
+    padding: 5px 12px;
+    border-radius: 6px;
+    letter-spacing: 0.3px;
 }
 
 /* ── WORK PAGES HEADER ── */
@@ -1010,7 +1073,6 @@ html, body, .stApp {
     color: #f0f2f8 !important;
 }
 
-/* Primary CTA — red filled */
 div[data-testid="stButton"]:has(button[kind="primary"]) button,
 .stButton > button[kind="primary"] {
     background: #dc2626 !important;
@@ -1112,7 +1174,7 @@ details > div { background: #0d1120 !important; padding: 1.2rem 1.4rem !importan
 hr { border-color: #111827 !important; }
 .stCaption, small { color: #4b5563 !important; font-size: 0.72rem !important; }
 
-/* ── FLAG / SCORE CARDS (carry over) ── */
+/* ── FLAG / SCORE CARDS ── */
 .dual-score-wrap{display:flex;gap:14px;margin-bottom:1.2rem;}
 .score-card{flex:1;background:#0d1120;border-radius:16px;padding:1.4rem 1.2rem;text-align:center;position:relative;overflow:hidden;transition:transform 0.2s;}
 .score-card:hover{transform:translateY(-3px);}
@@ -1137,21 +1199,102 @@ hr { border-color: #111827 !important; }
 .flag-sev{font-family:'JetBrains Mono',monospace;font-size:0.6rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;}
 .flag-title{font-size:0.95rem;font-weight:600;color:#e5e7eb;margin-top:4px;line-height:1.4;}
 .flag-detail{font-size:0.82rem;color:#6b7280;margin-top:5px;line-height:1.6;}
-.stmt-wrap{background:#0d1120;border:1px solid #151e33;border-radius:10px;overflow:hidden;margin-bottom:0;}
-.stmt-header{background:#101726;padding:0.5rem 0.9rem;font-family:'JetBrains Mono',monospace;font-size:0.62rem;color:#6b7280;text-transform:uppercase;letter-spacing:2px;border-bottom:1px solid #151e33;}
-.stmt-col-row{display:flex;padding:0.28rem 0.9rem;border-bottom:1px solid #0d1726;font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:#2d3a55;background:#090e1a;}
-.h-lbl{flex:1.6;}.h-v{flex:1;text-align:right;}
-.stmt-row{display:flex;align-items:center;padding:0.35rem 0.9rem;border-bottom:1px solid #0a1020;font-size:0.75rem;transition:background 0.15s;}
-.stmt-row:last-child{border-bottom:none;}
-.stmt-row:hover{background:rgba(255,255,255,0.015);}
-.stmt-row.hl-increase{background:rgba(220,38,38,0.07);border-left:2px solid rgba(220,38,38,0.5);}
-.stmt-row.hl-decrease{background:rgba(245,158,11,0.07);border-left:2px solid rgba(245,158,11,0.5);}
-.stmt-row.hl-neutral{background:rgba(59,130,246,0.06);border-left:2px solid rgba(59,130,246,0.4);}
-.r-lbl{flex:1.6;color:#4b5563;font-size:0.75rem;}.r-lbl.hl{color:#d1d5db;font-weight:600;}
-.r-v{flex:1;text-align:right;font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:#374151;}
-.r-v.pos{color:#34d399;}.r-v.neg{color:#f87171;}.r-v.hl-r{color:#ef4444;font-weight:600;}.r-v.hl-a{color:#f59e0b;font-weight:600;}.r-v.hl-b{color:#60a5fa;font-weight:600;}
-.chg{font-family:'JetBrains Mono',monospace;font-size:0.58rem;margin-left:3px;}
-.ev-lede{font-family:'JetBrains Mono',monospace;font-size:0.62rem;color:#2d3a55;text-transform:uppercase;letter-spacing:2px;margin:0.7rem 0 0.4rem 0.1rem;}
+
+/* ══════════════════════════════════════════════════════════
+   CHANGE 2 — FINANCIAL STATEMENT TABLE TYPOGRAPHY
+   Using Outfit for numbers, DM Sans for labels
+   Warmer, friendlier, non-coder aesthetic
+   ══════════════════════════════════════════════════════════ */
+.stmt-wrap {
+    background: #070c18;
+    border: 1px solid #0e1828;
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 0;
+}
+.stmt-header {
+    background: #090e1e;
+    padding: 0.65rem 1.1rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #3d5070;
+    letter-spacing: 1px;
+    border-bottom: 1px solid #0e1828;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.stmt-col-row {
+    display: flex;
+    padding: 0.32rem 1.1rem;
+    border-bottom: 1px solid #0c1525;
+    font-family: 'Outfit', 'DM Sans', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #253040;
+    background: #080c1a;
+    letter-spacing: 0.2px;
+}
+.h-lbl { flex: 1.6; }
+.h-v { flex: 1; text-align: right; }
+.stmt-row {
+    display: flex;
+    align-items: center;
+    padding: 0.42rem 1.1rem;
+    border-bottom: 1px solid #090d1c;
+    font-size: 0.82rem;
+    transition: background 0.15s;
+}
+.stmt-row:last-child { border-bottom: none; }
+.stmt-row:hover { background: rgba(255,255,255,0.018); }
+.stmt-row.hl-increase { background: rgba(220,38,38,0.08); border-left: 2px solid rgba(220,38,38,0.55); }
+.stmt-row.hl-decrease { background: rgba(245,158,11,0.08); border-left: 2px solid rgba(245,158,11,0.55); }
+.stmt-row.hl-neutral  { background: rgba(59,130,246,0.07); border-left: 2px solid rgba(59,130,246,0.45); }
+/* Metric labels — DM Sans, warm grey */
+.r-lbl {
+    flex: 1.6;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 400;
+    color: #3a5068;
+    letter-spacing: 0px;
+}
+.r-lbl.hl {
+    font-weight: 600;
+    color: #c0cedf;
+}
+/* Values — Outfit for clean numerals */
+.r-v {
+    flex: 1;
+    text-align: right;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.84rem;
+    font-weight: 500;
+    color: #2d3e55;
+    letter-spacing: -0.1px;
+}
+.r-v.pos { color: #28b87a; }
+.r-v.neg { color: #e85f5f; }
+.r-v.hl-r { color: #e85f5f; font-weight: 700; }
+.r-v.hl-a { color: #e8963a; font-weight: 700; }
+.r-v.hl-b { color: #4e95e8; font-weight: 700; }
+.chg {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.67rem;
+    font-weight: 600;
+    margin-left: 3px;
+    opacity: 0.9;
+}
+.ev-lede {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.73rem;
+    font-weight: 500;
+    color: #253040;
+    text-transform: uppercase;
+    letter-spacing: 1.8px;
+    margin: 0.75rem 0 0.45rem 0.1rem;
+}
 .sec-head{display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:#374151;text-transform:uppercase;letter-spacing:2.5px;margin:1.4rem 0 0.8rem;}
 .sec-head::after{content:'';flex:1;height:1px;background:#111827;}
 </style>
@@ -1198,9 +1341,9 @@ def make_trend_bar(series, title, hl_type, show_trendline=True):
     years = [str(d)[:4] for d in s.index]
     values = list(s.values)
     if len(values) < 2: return None
-    if hl_type == "increase":   base, last, tl = "rgba(220,38,38,0.25)", "#ef4444", "rgba(239,68,68,0.6)"
-    elif hl_type == "decrease": base, last, tl = "rgba(245,158,11,0.25)", "#f59e0b", "rgba(245,158,11,0.6)"
-    else:                       base, last, tl = "rgba(59,130,246,0.25)", "#3b82f6", "rgba(59,130,246,0.6)"
+    if hl_type == "increase":   base, last, tl = "rgba(220,38,38,0.3)", "#ef4444", "rgba(239,68,68,0.7)"
+    elif hl_type == "decrease": base, last, tl = "rgba(245,158,11,0.3)", "#f59e0b", "rgba(245,158,11,0.7)"
+    else:                       base, last, tl = "rgba(59,130,246,0.3)", "#3b82f6", "rgba(59,130,246,0.7)"
     bar_colors = [base] * (len(values)-1) + [last]
     yoy = [""]
     for i in range(1, len(values)):
@@ -1211,15 +1354,23 @@ def make_trend_bar(series, title, hl_type, show_trendline=True):
         else: yoy.append("")
     hover = [f"<b>{y}</b><br>₹{v:,.1f} Cr<br>{yoy[i] or '—'}" for i,(y,v) in enumerate(zip(years,values))]
     fig = go.Figure()
-    fig.add_trace(go.Bar(x=years, y=values, marker=dict(color=bar_colors, line=dict(width=0)),
-                         hovertemplate="%{customdata}<extra></extra>", customdata=hover, showlegend=False))
+    fig.add_trace(go.Bar(
+        x=years, y=values,
+        marker=dict(color=bar_colors, line=dict(color=[c.replace('0.3','0.7').replace('0.25','0.6') for c in bar_colors], width=1.2)),
+        hovertemplate="%{customdata}<extra></extra>", customdata=hover, showlegend=False
+    ))
     if show_trendline and len(values) >= 3:
         xi = np.arange(len(values), dtype=float); ya = np.array(values, dtype=float)
         v = ~np.isnan(ya)
         if v.sum() >= 2:
             m, b = np.polyfit(xi[v], ya[v], 1)
-            fig.add_trace(go.Scatter(x=years, y=[m*x+b for x in xi],
-                                     mode='lines', line=dict(color=tl, width=2, dash='dot'), showlegend=False))
+            fig.add_trace(go.Scatter(
+                x=years, y=[m*x+b for x in xi],
+                mode='lines+markers',
+                line=dict(color=tl, width=2.5, dash='dot'),
+                marker=dict(size=6, color=last, line=dict(width=1.5, color=tl)),
+                showlegend=False, hoverinfo='skip'
+            ))
     ann = []
     for i,(y,val,txt) in enumerate(zip(years,values,yoy)):
         if txt:
@@ -1227,47 +1378,139 @@ def make_trend_bar(series, title, hl_type, show_trendline=True):
             c = "#34d399" if pv >= 0 else "#f87171"
             ann.append(dict(x=y,y=val,text=f"<span style='color:{c}'>{txt}</span>",
                             showarrow=False,yanchor="bottom",yshift=5,
-                            font=dict(size=8,color=c,family="JetBrains Mono")))
-    fig.update_layout(title=dict(text=f"<b>{title}</b>",font=dict(size=11,color='#9ca3af',family='DM Sans'),x=0.5),
-                      height=210, margin=dict(t=38,b=12,l=10,r=10),
-                      paper_bgcolor='#0d1120', plot_bgcolor='#0d1120',
-                      font=dict(color='#6b7280',family='DM Sans'), annotations=ann,
-                      xaxis=dict(type='category',tickfont=dict(color='#4b5563',size=9,family='JetBrains Mono'),showgrid=False),
-                      yaxis=dict(gridcolor='rgba(26,37,64,0.5)',gridwidth=0.5,zerolinecolor='rgba(26,37,64,0.8)',
-                                 tickfont=dict(color='#374151',size=8),showticklabels=False),
-                      bargap=0.35, showlegend=False, hovermode='x unified')
+                            font=dict(size=8,color=c,family="Outfit, DM Sans")))
+    fig.update_layout(
+        title=dict(text=f"<b>{title}</b>", font=dict(size=11,color='#9ca3af',family='DM Sans'), x=0.5),
+        height=220, margin=dict(t=38,b=12,l=10,r=10),
+        paper_bgcolor='#0d1120', plot_bgcolor='#0d1120',
+        font=dict(color='#6b7280',family='DM Sans'), annotations=ann,
+        xaxis=dict(type='category', tickfont=dict(color='#4b5563',size=10,family='Outfit, DM Sans'), showgrid=False),
+        yaxis=dict(gridcolor='rgba(26,37,64,0.5)',gridwidth=0.5,zerolinecolor='rgba(26,37,64,0.8)',
+                   tickfont=dict(color='#374151',size=8),showticklabels=False),
+        bargap=0.38, showlegend=False, hovermode='x unified'
+    )
     return fig
 
+
+# ══════════════════════════════════════════════════════════════
+#  CHANGE 3 — COLUMN-LINE COMBO CHART
+#  Grouped bars with dotted trend lines connecting bar tops
+# ══════════════════════════════════════════════════════════════
 def make_dual_trend_chart(s1, l1, s2, l2, title):
+    """Column + dotted-line combo: grouped bars with dotted lines on top."""
     if s1 is None or s2 is None: return None
-    a = s1.dropna().sort_index(); b = s2.dropna().sort_index()
+    a = s1.dropna().sort_index()
+    b = s2.dropna().sort_index()
     if a.empty or b.empty: return None
-    y1 = [str(d)[:4] for d in a.index]; y2 = [str(d)[:4] for d in b.index]
+
+    y1 = [str(d)[:4] for d in a.index]
+    y2 = [str(d)[:4] for d in b.index]
+    v1 = list(a.values)
+    v2 = list(b.values)
+
+    # Align both series to the same set of years
+    all_years = sorted(set(y1) | set(y2))
+
+    def align(years_list, vals, all_y):
+        m = dict(zip(years_list, vals))
+        return [m.get(y, None) for y in all_y]
+
+    v1a = align(y1, v1, all_years)
+    v2a = align(y2, v2, all_years)
+
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=y1,y=list(a.values),mode='lines+markers',name=l1,
-                             line=dict(color='#3b82f6',width=2),marker=dict(size=6,color='#3b82f6'),
-                             hovertemplate=f"<b>{l1}</b><br>₹%{{y:,.1f}} Cr<extra></extra>"))
-    fig.add_trace(go.Scatter(x=y2,y=list(b.values),mode='lines+markers',name=l2,
-                             line=dict(color='#ef4444',width=2),marker=dict(size=6,color='#ef4444',symbol='diamond'),
-                             hovertemplate=f"<b>{l2}</b><br>₹%{{y:,.1f}} Cr<extra></extra>"))
-    for (ys,vs,col) in [(y1,list(a.values),'rgba(59,130,246,0.4)'),(y2,list(b.values),'rgba(239,68,68,0.4)')]:
-        xi=np.arange(len(vs),dtype=float); ya=np.array(vs,dtype=float)
-        if len(ya)>=3:
-            m,c=np.polyfit(xi,ya,1)
-            fig.add_trace(go.Scatter(x=ys,y=[m*x+c for x in xi],mode='lines',
-                                     line=dict(color=col,width=1.5,dash='dot'),showlegend=False,hoverinfo='skip'))
-    fig.update_layout(title=dict(text=f"<b>{title}</b>",font=dict(size=11,color='#9ca3af',family='DM Sans'),x=0.5),
-                      height=230, margin=dict(t=38,b=12,l=10,r=10),
-                      paper_bgcolor='#0d1120', plot_bgcolor='#0d1120',
-                      font=dict(color='#6b7280',family='DM Sans'),
-                      legend=dict(font=dict(color='#9ca3af',size=9,family='JetBrains Mono'),
-                                  bgcolor='rgba(13,17,32,0.8)',bordercolor='#1a2540',borderwidth=1,
-                                  orientation='h',yanchor='bottom',y=1.02,xanchor='center',x=0.5),
-                      xaxis=dict(type='category',tickfont=dict(color='#4b5563',size=9,family='JetBrains Mono'),showgrid=False),
-                      yaxis=dict(gridcolor='rgba(26,37,64,0.5)',gridwidth=0.5,zerolinecolor='rgba(26,37,64,0.8)',
-                                 tickfont=dict(color='#374151',size=8),showticklabels=False),
-                      hovermode='x unified')
+
+    # ── Series 1 bars (blue) ──
+    fig.add_trace(go.Bar(
+        x=all_years, y=v1a, name=l1,
+        marker=dict(
+            color='rgba(59,130,246,0.50)',
+            line=dict(color='rgba(96,165,250,0.85)', width=1.5)
+        ),
+        hovertemplate=f"<b>{l1}</b><br>₹%{{y:,.1f}} Cr<extra></extra>",
+        offsetgroup=0,
+    ))
+
+    # ── Series 2 bars (red) ──
+    fig.add_trace(go.Bar(
+        x=all_years, y=v2a, name=l2,
+        marker=dict(
+            color='rgba(220,38,38,0.42)',
+            line=dict(color='rgba(239,68,68,0.80)', width=1.5)
+        ),
+        hovertemplate=f"<b>{l2}</b><br>₹%{{y:,.1f}} Cr<extra></extra>",
+        offsetgroup=1,
+    ))
+
+    # ── Dotted connector line for Series 1 ──
+    valid1_x = [y for y, v in zip(all_years, v1a) if v is not None]
+    valid1_y = [v for v in v1a if v is not None]
+    if len(valid1_y) >= 2:
+        fig.add_trace(go.Scatter(
+            x=valid1_x, y=valid1_y,
+            mode='lines+markers',
+            name=f"{l1} trend",
+            line=dict(color='rgba(147,197,253,0.95)', width=2.5, dash='dot'),
+            marker=dict(size=8, color='#60a5fa', symbol='circle',
+                        line=dict(width=2, color='#2563eb')),
+            hoverinfo='skip', showlegend=False,
+        ))
+
+    # ── Dotted connector line for Series 2 ──
+    valid2_x = [y for y, v in zip(all_years, v2a) if v is not None]
+    valid2_y = [v for v in v2a if v is not None]
+    if len(valid2_y) >= 2:
+        fig.add_trace(go.Scatter(
+            x=valid2_x, y=valid2_y,
+            mode='lines+markers',
+            name=f"{l2} trend",
+            line=dict(color='rgba(252,165,165,0.95)', width=2.5, dash='dot'),
+            marker=dict(size=8, color='#f87171', symbol='diamond',
+                        line=dict(width=2, color='#b91c1c')),
+            hoverinfo='skip', showlegend=False,
+        ))
+
+    fig.update_layout(
+        title=dict(
+            text=f"<b>{title}</b>",
+            font=dict(size=12, color='#9ca3af', family='DM Sans'),
+            x=0.5
+        ),
+        barmode='group',
+        bargap=0.22,
+        bargroupgap=0.06,
+        height=255,
+        margin=dict(t=44, b=14, l=10, r=10),
+        paper_bgcolor='#0d1120',
+        plot_bgcolor='#0d1120',
+        font=dict(color='#6b7280', family='DM Sans'),
+        legend=dict(
+            font=dict(color='#9ca3af', size=10, family='DM Sans'),
+            bgcolor='rgba(13,17,32,0.88)',
+            bordercolor='#1a2540',
+            borderwidth=1,
+            orientation='h',
+            yanchor='bottom', y=1.02,
+            xanchor='center', x=0.5,
+        ),
+        xaxis=dict(
+            type='category',
+            tickfont=dict(color='#4b5563', size=10, family='Outfit, DM Sans'),
+            showgrid=False,
+            linecolor='#1a2540',
+            linewidth=1,
+        ),
+        yaxis=dict(
+            gridcolor='rgba(26,37,64,0.4)',
+            gridwidth=0.5,
+            zerolinecolor='rgba(26,37,64,0.7)',
+            tickfont=dict(color='#374151', size=8),
+            showticklabels=False,
+        ),
+        hovermode='x unified',
+    )
     return fig
+
 
 PANEL_ROWS = {
     "BS": [("Total Debt","total_debt"),("Shareholders Equity","equity"),("Receivables","receivables"),
@@ -1328,7 +1571,7 @@ def render_stmt_panel(pk, data, hl_labels, hl_type_map, n_years=3):
                     chg = (val-prev_val)/abs(prev_val)
                     arrow = "▲" if chg > 0 else "▼"
                     bad = (chg>0 and hl_type=="increase") or (chg<0 and hl_type=="decrease")
-                    chg_color = "#ef4444" if bad else "#34d399"
+                    chg_color = "#e85f5f" if bad else "#28b87a"
                     chg_html = f'<span class="chg" style="color:{chg_color}">{arrow}{abs(chg):.0%}</span>'
             vals_html += f'<span class="{val_cls}">{val_str}{chg_html}</span>'
             prev_val = val
@@ -1465,7 +1708,6 @@ def render_about():
     """, unsafe_allow_html=True)
 
 
-
 # ═══════════════════════════════════════════════════════════════
 #  SHARED WORK-PAGE HEADER
 # ═══════════════════════════════════════════════════════════════
@@ -1490,7 +1732,6 @@ def _work_header(subtitle, back_key):
 # ═══════════════════════════════════════════════════════════════
 if st.session_state["current_page"] == "landing":
 
-    # Eyebrow
     st.markdown("""
     <div class="hero-eyebrow">
       <div class="hero-eyebrow-line"></div>
@@ -1498,7 +1739,6 @@ if st.session_state["current_page"] == "landing":
     </div>
     """, unsafe_allow_html=True)
 
-    # Big title
     st.markdown("""
     <div class="hero-title">
       Financial<br>
@@ -1507,7 +1747,6 @@ if st.session_state["current_page"] == "landing":
     </div>
     """, unsafe_allow_html=True)
 
-    # Subtitle
     st.markdown("""
     <div class="hero-subtitle">
       Institutional-grade red flag analysis for NSE-listed companies.
@@ -1516,7 +1755,6 @@ if st.session_state["current_page"] == "landing":
     </div>
     """, unsafe_allow_html=True)
 
-    # CTA
     col_btn, _, _ = st.columns([1.2, 1, 1])
     with col_btn:
         if st.button("Start Analysing  →", type="primary", use_container_width=True, key="landing_cta"):
@@ -1525,7 +1763,6 @@ if st.session_state["current_page"] == "landing":
 
     st.markdown("<div style='height:2.5rem;'></div>", unsafe_allow_html=True)
 
-    # Stats strip
     n_co = len(ALL_COMPANIES)
     st.markdown(f"""
     <div class="stat-grid">
@@ -1548,7 +1785,6 @@ if st.session_state["current_page"] == "landing":
     </div>
     """, unsafe_allow_html=True)
 
-    # Ticker strip — built purely in Python to avoid JS brace issues
     items = ["Forensic Finance", "NSE Listed", "7 Risk Checks", "11 Manipulation Signals",
              "Beneish M-Score", "Altman Z-Score", "Sector Scan", "Deep Research",
              "Governance Intel", "Concall Analysis", "Earnings Quality", "Balance Sheet",
@@ -1568,11 +1804,14 @@ if st.session_state["current_page"] == "landing":
 
 
 # ═══════════════════════════════════════════════════════════════
-#  PAGE 2 — NAVIGATION  (three equal cards)
+#  PAGE 2 — NAVIGATION
+#  CHANGE 1: morph wrapper + centered cards + cascade animation
 # ═══════════════════════════════════════════════════════════════
 elif st.session_state["current_page"] == "nav":
 
-    # Top bar with logo + back
+    # ── Morph wrapper opens — everything drops in from top ──
+    st.markdown('<div class="nav-page-wrapper">', unsafe_allow_html=True)
+
     col_logo, col_back = st.columns([5, 1])
     with col_logo:
         st.markdown('<div class="nav-topbar"><div class="nav-logo">Financial <span>Shenanigans</span></div></div>',
@@ -1584,7 +1823,6 @@ elif st.session_state["current_page"] == "nav":
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # Heading
     st.markdown("""
     <div class="nav-section-label">Choose your tool</div>
     <div class="nav-heading">Where do you want<br>to <span>dig</span> today?</div>
@@ -1594,12 +1832,13 @@ elif st.session_state["current_page"] == "nav":
     </p>
     """, unsafe_allow_html=True)
 
-    # ── THREE EQUAL CARDS ──────────────────────────────────────
+    # ── THREE CARDS — centered content, cascade animation ──
     c1, c2, c3 = st.columns(3, gap="medium")
 
     with c1:
+        # feat-card-c1 adds staggered cascade from top
         st.markdown("""
-        <div class="feat-card">
+        <div class="feat-card feat-card-c1">
           <div class="feat-card-top-line red"></div>
           <div class="feat-num">01</div>
           <div class="feat-icon red">🔍</div>
@@ -1623,7 +1862,7 @@ elif st.session_state["current_page"] == "nav":
 
     with c2:
         st.markdown("""
-        <div class="feat-card">
+        <div class="feat-card feat-card-c2">
           <div class="feat-card-top-line purple"></div>
           <div class="feat-num">02</div>
           <div class="feat-icon purple">📊</div>
@@ -1646,7 +1885,7 @@ elif st.session_state["current_page"] == "nav":
 
     with c3:
         st.markdown("""
-        <div class="feat-card">
+        <div class="feat-card feat-card-c3">
           <div class="feat-card-top-line blue"></div>
           <div class="feat-num">03</div>
           <div class="feat-icon blue">🔬</div>
@@ -1671,11 +1910,16 @@ elif st.session_state["current_page"] == "nav":
     st.markdown("<div style='height:1rem;'></div>", unsafe_allow_html=True)
     render_about()
 
+    # ── Close morph wrapper ──
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
 # ═══════════════════════════════════════════════════════════════
 #  PAGE 3a — SEARCH & ANALYSE
 # ═══════════════════════════════════════════════════════════════
 elif st.session_state["current_page"] == "search":
 
+    st.markdown('<div class="work-page-wrapper">', unsafe_allow_html=True)
     _work_header("Research & Analysis", "search_back")
 
     if _fallback_mode:
@@ -1768,6 +2012,7 @@ elif st.session_state["current_page"] == "search":
         st.download_button("📥 Download Excel Report", buf.getvalue(), file_name="red_flags.xlsx")
 
     render_about()
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1775,6 +2020,7 @@ elif st.session_state["current_page"] == "search":
 # ═══════════════════════════════════════════════════════════════
 elif st.session_state["current_page"] == "sector":
 
+    st.markdown('<div class="work-page-wrapper">', unsafe_allow_html=True)
     _work_header("Sector Scanner", "sector_back")
 
     SECTOR_GROUPS = {
@@ -1838,6 +2084,7 @@ elif st.session_state["current_page"] == "sector":
                         render_flag(flag,r,unique_key=f"sec_manip_{r['ticker']}_{fi}",flag_type="MANIP")
 
     render_about()
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1845,6 +2092,8 @@ elif st.session_state["current_page"] == "sector":
 # ═══════════════════════════════════════════════════════════════
 elif st.session_state["current_page"] == "deep":
 
+    st.markdown('<div class="work-page-wrapper">', unsafe_allow_html=True)
     _work_header("Deep Research", "deep_back")
     render_deep_research_selector(st.session_state.get("all_results_store", []))
     render_about()
+    st.markdown('</div>', unsafe_allow_html=True)
