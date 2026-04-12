@@ -69,18 +69,6 @@ def _safe_div(a, b):
 # ══════════════════════════════════════════════════════════════
 
 def compute_beneish_mscore(data):
-    """
-    Beneish M-Score (8-factor model).
-    Components:
-      DSRI  = Days Sales Receivable Index
-      GMI   = Gross Margin Index
-      AQI   = Asset Quality Index
-      SGI   = Sales Growth Index
-      DEPI  = Depreciation Index
-      SGAI  = SG&A Index (proxied via interest/revenue)
-      LVGI  = Leverage Index
-      TATA  = Total Accruals to Total Assets
-    """
     pnl = data.get("pnl", {})
     bs  = data.get("bs",  {})
     cf  = data.get("cf",  {})
@@ -98,7 +86,6 @@ def compute_beneish_mscore(data):
     components = {}
     missing = []
 
-    # DSRI
     rec_t = _last(rec); rec_p = _prev(rec)
     rev_t = _last(rev); rev_p = _prev(rev)
     if all(v not in (None, 0) for v in [rec_t, rec_p, rev_t, rev_p]):
@@ -109,7 +96,6 @@ def compute_beneish_mscore(data):
                            "label": "Days Sales Receivable Index", "flag": dsri > 1.465,
                            "note": "Receivables growing faster than revenue → potential channel stuffing"}
 
-    # GMI
     gp_t = _last(gp); gp_p = _prev(gp)
     if all(v not in (None, 0) for v in [gp_t, gp_p, rev_t, rev_p]):
         gmi = _safe_div(gp_p / rev_p, gp_t / rev_t) or 1.0
@@ -119,7 +105,6 @@ def compute_beneish_mscore(data):
                           "label": "Gross Margin Index", "flag": gmi > 1.193,
                           "note": "Margins deteriorating — incentive to manipulate earnings"}
 
-    # AQI
     ca_t  = _last(bs.get("current_assets")); ca_p  = _prev(bs.get("current_assets"))
     nca_t = _last(nca);                       nca_p = _prev(nca)
     ta_t  = _last(ta);                        ta_p  = _prev(ta)
@@ -131,14 +116,12 @@ def compute_beneish_mscore(data):
                           "label": "Asset Quality Index", "flag": aqi > 1.254,
                           "note": "Non-current / intangible assets increasing → possible capitalisation"}
 
-    # SGI
     sgi = _safe_div(rev_t, rev_p) or 1.0
     if rev_t is None or rev_p is None: missing.append("SGI")
     components["SGI"] = {"value": round(sgi, 3), "weight": 0.892,
                           "label": "Sales Growth Index", "flag": sgi > 1.607,
                           "note": "High growth companies face pressure to sustain it through manipulation"}
 
-    # DEPI
     dep_t = _last(dep); dep_p = _prev(dep)
     ppe_t = _last(nca);  ppe_p = _prev(nca)
     if all(v not in (None, 0) for v in [dep_t, dep_p, ppe_t, ppe_p]):
@@ -149,7 +132,6 @@ def compute_beneish_mscore(data):
                            "label": "Depreciation Index", "flag": depi > 1.077,
                            "note": "Slowing depreciation rate → assets being sweated or life extended"}
 
-    # SGAI (proxy: interest/revenue)
     int_t = abs(_last(pnl.get("interest_exp")) or 0)
     int_p = abs(_prev(pnl.get("interest_exp")) or 0)
     if all(v not in (None, 0) for v in [int_t, int_p, rev_t, rev_p]):
@@ -160,7 +142,6 @@ def compute_beneish_mscore(data):
                            "label": "Expense Index (Interest/Revenue proxy)", "flag": sgai > 1.041,
                            "note": "Disproportionate expense growth vs revenue"}
 
-    # LVGI
     cl_t  = _last(bs.get("current_liab")); cl_p = _prev(bs.get("current_liab"))
     dbt_t = _last(debt);                   dbt_p = _prev(debt)
     if all(v not in (None, 0) for v in [cl_t, cl_p, dbt_t, dbt_p, ta_t, ta_p]):
@@ -171,7 +152,6 @@ def compute_beneish_mscore(data):
                            "label": "Leverage Index", "flag": lvgi > 1.111,
                            "note": "Increasing leverage → debt covenant pressure to inflate profits"}
 
-    # TATA
     pat_t = _last(pat); cfo_t = _last(cfo)
     if all(v is not None for v in [pat_t, cfo_t, ta_t]) and ta_t != 0:
         tata = (pat_t - cfo_t) / ta_t
@@ -203,7 +183,6 @@ def compute_beneish_mscore(data):
 
 
 def compute_altman_zscore(data, sector=""):
-    """Altman Z-Score: Z = 1.2X1 + 1.4X2 + 3.3X3 + 0.6X4 + 1.0X5"""
     pnl  = data.get("pnl", {})
     bs   = data.get("bs",  {})
     mcap = data.get("mcap_cr")
@@ -275,7 +254,6 @@ def compute_altman_zscore(data, sector=""):
 
 # ══════════════════════════════════════════════════════════════
 #  SECTION B — FREE AI STACK
-#  DuckDuckGo (search) + Groq (primary) + Gemini (fallback)
 # ══════════════════════════════════════════════════════════════
 
 def _get_groq_key():
@@ -292,12 +270,6 @@ def _get_gemini_key():
 
 
 def web_search_ddg(query, max_results=6):
-    """
-    Free web search via DuckDuckGo.
-    Tries duckduckgo_search library first, falls back to HTML scrape.
-    No API key required.
-    Install: pip install duckduckgo-search
-    """
     try:
         from duckduckgo_search import DDGS
         with DDGS() as ddgs:
@@ -313,7 +285,6 @@ def web_search_ddg(query, max_results=6):
 
 
 def _ddg_html_fallback(query, max_results=5):
-    """Fallback: scrape DuckDuckGo HTML — no library needed."""
     try:
         headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"}
         resp = requests.get(
@@ -342,7 +313,6 @@ def _ddg_html_fallback(query, max_results=5):
 
 
 def call_groq(prompt, system_prompt, max_tokens=2500):
-    """Call Groq API — free, uses llama-3.3-70b-versatile."""
     api_key = _get_groq_key()
     if not api_key:
         return None, "GROQ_API_KEY not set"
@@ -371,7 +341,6 @@ def call_groq(prompt, system_prompt, max_tokens=2500):
 
 
 def call_gemini(prompt, system_prompt, max_tokens=2500):
-    """Call Gemini API — free, uses gemini-1.5-flash."""
     api_key = _get_gemini_key()
     if not api_key:
         return None, "GEMINI_API_KEY not set"
@@ -395,27 +364,17 @@ def call_gemini(prompt, system_prompt, max_tokens=2500):
 
 
 def call_ai(prompt, system_prompt, max_tokens=2500):
-    """
-    Primary AI caller. Tries Groq first (faster), auto-falls back to Gemini.
-    Returns response string or ⚠️-prefixed error.
-    """
     content, err = call_groq(prompt, system_prompt, max_tokens)
     if content:
         return content
-
     st.caption(f"ℹ️ Groq unavailable ({err}), switching to Gemini…")
     content, err = call_gemini(prompt, system_prompt, max_tokens)
     if content:
         return content
-
     return f"⚠️ Both Groq and Gemini failed. Last error: {err}"
 
 
 def build_search_context(search_queries, max_results_per_query=4):
-    """
-    Runs multiple DuckDuckGo searches and compiles results into a
-    text block injected into the AI prompt as context.
-    """
     parts = []
     for query in search_queries:
         results = web_search_ddg(query, max_results=max_results_per_query)
@@ -431,7 +390,6 @@ def build_search_context(search_queries, max_results_per_query=4):
 
 
 def _parse_json_response(raw, context=""):
-    """Safely extract a JSON object from an AI response string."""
     if not raw or str(raw).startswith("⚠️"):
         return None, raw
     try:
@@ -461,10 +419,6 @@ def _governance_fallback(raw=""):
 
 
 def _build_governance_queries(company_name, nse_sym, sector, risk_flags, manip_flags):
-    """
-    Derives search queries dynamically from detected financial flags.
-    No hardcoded company-specific templates — all driven by what anomalies were found.
-    """
     queries = [
         f"{company_name} SEBI notice investigation penalty 2024 2025",
         f"{company_name} auditor resignation qualification 2024 2025",
@@ -472,7 +426,6 @@ def _build_governance_queries(company_name, nse_sym, sector, risk_flags, manip_f
         f"{nse_sym} NSE BSE corporate announcement board 2024 2025",
     ]
 
-    # Sector-specific regulator queries
     sector_l = sector.lower()
     if any(k in sector_l for k in ["bank", "nbfc", "financial", "lending"]):
         queries += [
@@ -488,7 +441,6 @@ def _build_governance_queries(company_name, nse_sym, sector, risk_flags, manip_f
     else:
         queries.append(f"{company_name} credit rating downgrade NCLT IBC 2024 2025")
 
-    # Flag-driven queries — each financial anomaly maps to a real-world search
     all_flags = list(risk_flags or []) + list(manip_flags or [])
     for f in all_flags:
         detail = (f[2] if len(f) > 2 else str(f)).lower()
@@ -503,7 +455,6 @@ def _build_governance_queries(company_name, nse_sym, sector, risk_flags, manip_f
         if any(k in detail for k in ["margin", "profit"]):
             queries.append(f"{company_name} margin pressure regulatory price control 2024")
 
-    # Deduplicate preserving order, cap at 8
     seen, unique = set(), []
     for q in queries:
         if q not in seen:
@@ -512,10 +463,6 @@ def _build_governance_queries(company_name, nse_sym, sector, risk_flags, manip_f
 
 
 def governance_scan(company_name, ticker, sector, risk_flags=None, manip_flags=None):
-    """
-    Governance scan: DuckDuckGo search → Groq/Gemini analysis.
-    Search queries are derived from detected financial flags, not hardcoded.
-    """
     nse_sym = ticker.replace(".NS", "").replace(".BO", "")
     queries = _build_governance_queries(company_name, nse_sym, sector, risk_flags or [], manip_flags or [])
 
@@ -593,11 +540,6 @@ def _concall_fallback(raw=""):
 
 
 def _build_concall_queries(company_name, nse_sym):
-    """
-    Queries targeting sources that ARE publicly indexed:
-    news articles, analyst summaries, business press coverage of earnings calls.
-    Raw transcripts are mostly paywalled so we target secondary coverage instead.
-    """
     return [
         f"{company_name} earnings call management commentary Q4 FY25",
         f"{company_name} concall highlights management Q3 FY25",
@@ -610,11 +552,6 @@ def _build_concall_queries(company_name, nse_sym):
 
 
 def concall_intelligence(company_name, ticker, risk_flags, manip_flags):
-    """
-    Concall intelligence: DuckDuckGo search → Groq/Gemini analysis.
-    Searches news and analyst coverage (publicly indexed) rather than
-    paywalled raw transcript PDFs.
-    """
     nse_sym = ticker.replace(".NS", "").replace(".BO", "")
     queries = _build_concall_queries(company_name, nse_sym)
 
@@ -630,13 +567,7 @@ def concall_intelligence(company_name, ticker, risk_flags, manip_flags):
 
     system = """You are a forensic equity analyst reviewing management credibility via earnings calls.
 Analyze the web search results to extract management commentary and assess credibility.
-Respond ONLY in valid JSON — no markdown, no text outside the JSON.
-
-Signs of LOW credibility to flag:
-- Explanations for red flags keep changing quarter to quarter
-- Vague language with no resolution timeline
-- Guided high repeatedly but delivered low
-- Avoided specific analyst questions on concerns"""
+Respond ONLY in valid JSON — no markdown, no text outside the JSON."""
 
     prompt = f"""Company: {company_name} (NSE: {nse_sym})
 
@@ -645,13 +576,6 @@ FINANCIAL RED FLAGS TO TRACK — find what management said about each:
 
 WEB SEARCH RESULTS (earnings call coverage, analyst notes, news articles):
 {search_context}
-
-From the search results extract:
-1. Per-quarter management commentary (last 4 quarters if available)
-2. What management said specifically about each red flag
-3. Whether management tone or explanations changed across quarters
-4. Any guidance given and whether it was met
-5. Overall credibility assessment
 
 Return this exact JSON:
 {{
@@ -677,7 +601,7 @@ Return this exact JSON:
       "trend_color": "<green|yellow|orange|red>",
       "q_by_q": {{"Q1":"...","Q2":"...","Q3":"...","Q4":"..."}},
       "management_credible": <true|false>,
-      "insight": "<2 sentence analyst insight on how management handled this>"
+      "insight": "<2 sentence analyst insight>"
     }}
   ],
   "overall_credibility": "<LOW|MEDIUM|HIGH>",
@@ -687,9 +611,7 @@ Return this exact JSON:
   "summary": "<3-4 sentence overall assessment>"
 }}
 
-Only report what is supported by search results. Do not fabricate quotes or events.
-If no data found for a quarter, omit it from quarters_data.
-Return ONLY valid JSON."""
+Only report what is supported by search results. Return ONLY valid JSON."""
 
     raw = call_ai(prompt, system, max_tokens=3000)
 
@@ -713,7 +635,6 @@ def compute_final_verdict(risk_score, manip_score, m_score_result, z_score_resul
                            governance_result, concall_result):
     reasons, positives, score_components = [], [], []
 
-    # Financial risk
     if risk_score >= 6:
         reasons.append(f"High financial risk score ({risk_score}/10)")
         score_components.append(("Financial Risk", risk_score, 10, "#ef4444"))
@@ -724,7 +645,6 @@ def compute_final_verdict(risk_score, manip_score, m_score_result, z_score_resul
         positives.append(f"Clean financial risk profile ({risk_score}/10)")
         score_components.append(("Financial Risk", risk_score, 10, "#22c55e"))
 
-    # Manipulation
     if manip_score >= 6:
         reasons.append(f"High manipulation signal score ({manip_score}/10)")
         score_components.append(("Manipulation Signal", manip_score, 10, "#a78bfa"))
@@ -735,7 +655,6 @@ def compute_final_verdict(risk_score, manip_score, m_score_result, z_score_resul
         positives.append(f"No significant manipulation signals ({manip_score}/10)")
         score_components.append(("Manipulation Signal", manip_score, 10, "#6ee7b7"))
 
-    # Beneish
     m_risk = m_score_result.get("risk_level", "LOW")
     m_val  = m_score_result.get("score", -3.0)
     m_red  = len(m_score_result.get("red_flags", []))
@@ -749,7 +668,6 @@ def compute_final_verdict(risk_score, manip_score, m_score_result, z_score_resul
         positives.append(f"Beneish M-Score ({m_val}) — no manipulation signal")
         score_components.append(("Beneish M-Score", 2, 10, "#22c55e"))
 
-    # Altman
     z_risk = z_score_result.get("risk_level", "LOW")
     z_val  = z_score_result.get("score", 3.0)
     if z_risk == "HIGH":
@@ -764,7 +682,6 @@ def compute_final_verdict(risk_score, manip_score, m_score_result, z_score_resul
         positives.append(f"Altman Z-Score ({z_val}) — safe zone")
         score_components.append(("Altman Z-Score", 2, 10, "#22c55e"))
 
-    # Governance
     gov_risk  = governance_result.get("overall_risk", "UNKNOWN")
     gov_score = governance_result.get("governance_score", 5)
     if gov_risk == "HIGH":
@@ -779,7 +696,6 @@ def compute_final_verdict(risk_score, manip_score, m_score_result, z_score_resul
     else:
         score_components.append(("Governance", 5, 10, "#6b7280"))
 
-    # Concall credibility
     cc_cred  = concall_result.get("overall_credibility", "UNKNOWN")
     cc_score = concall_result.get("credibility_score", 5)
     if cc_cred == "LOW":
@@ -829,107 +745,522 @@ def compute_final_verdict(risk_score, manip_score, m_score_result, z_score_resul
 
 DEEP_RESEARCH_CSS = """
 <style>
+/* ── Google Fonts ── */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* ── Base token overrides ── */
+:root {
+    --bg-deep:    #070c18;
+    --bg-card:    #0b1120;
+    --bg-surface: #0e1526;
+    --border:     #192138;
+    --border-dim: #111827;
+    --text-primary:   #eef0f7;
+    --text-secondary: #8492b0;
+    --text-muted:     #3d4f6e;
+    --text-label:     #5a6e8c;
+    --accent-purple:  #a78bfa;
+    --accent-red:     #f87171;
+    --accent-green:   #34d399;
+    --accent-amber:   #fbbf24;
+    --accent-blue:    #60a5fa;
+}
+
+/* ── AI Stack badge ── */
+.ai-stack-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(52,211,153,0.07);
+    border: 1px solid rgba(52,211,153,0.2);
+    color: #34d399;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 1px;
+    padding: 5px 14px;
+    border-radius: 8px;
+    margin-bottom: 1.2rem;
+}
+
+/* ── Snapshot header card ── */
 .dr-snapshot {
-    background: linear-gradient(135deg,#060a14 0%,#090c18 100%);
-    border:1px solid #1a2540;border-radius:18px;padding:2rem 2.4rem;
-    margin-bottom:1.4rem;position:relative;overflow:hidden;
+    background: linear-gradient(135deg, #070c18 0%, #0b1020 100%);
+    border: 1px solid #192138;
+    border-radius: 20px;
+    padding: 2.4rem 2.8rem;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+    text-align: center;
 }
 .dr-snapshot::before {
-    content:'';position:absolute;top:-60px;right:-60px;width:220px;height:220px;
-    background:radial-gradient(circle,rgba(139,92,246,0.1) 0%,transparent 65%);
-    border-radius:50%;pointer-events:none;
+    content: '';
+    position: absolute;
+    top: -80px; right: -80px;
+    width: 280px; height: 280px;
+    background: radial-gradient(circle, rgba(139,92,246,0.09) 0%, transparent 65%);
+    border-radius: 50%;
+    pointer-events: none;
 }
 .dr-badge {
-    display:inline-flex;align-items:center;gap:5px;
-    background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.25);
-    color:#a78bfa;font-family:'JetBrains Mono',monospace;font-size:0.58rem;
-    letter-spacing:2px;text-transform:uppercase;padding:4px 12px;border-radius:20px;margin-bottom:0.7rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(139,92,246,0.1);
+    border: 1px solid rgba(139,92,246,0.25);
+    color: #a78bfa;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    padding: 5px 14px;
+    border-radius: 20px;
+    margin-bottom: 1rem;
 }
-.dr-company-name{font-size:1.6rem;font-weight:700;color:#f0f2f8;letter-spacing:-0.5px;margin-bottom:0.2rem;}
-.dr-company-meta{font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:#4b5563;margin-bottom:1.2rem;}
-.dr-score-row{display:flex;gap:12px;flex-wrap:wrap;}
-.dr-score-pill{
-    display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,0.04);
-    border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:8px 14px;
-    font-family:'JetBrains Mono',monospace;
+.dr-company-name {
+    font-family: 'Outfit', sans-serif;
+    font-size: 2.4rem;
+    font-weight: 800;
+    color: #eef0f7;
+    letter-spacing: -1px;
+    margin-bottom: 0.4rem;
+    text-align: center;
 }
-.dr-score-pill .label{font-size:0.6rem;color:#4b5563;text-transform:uppercase;letter-spacing:1.5px;}
-.dr-score-pill .val{font-size:1rem;font-weight:700;letter-spacing:-0.5px;}
-.dr-section{background:#0d1120;border:1px solid #1a2540;border-radius:16px;padding:1.5rem 1.8rem;margin-bottom:1.2rem;}
-.dr-section-title{
-    display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;
-    font-size:0.63rem;text-transform:uppercase;letter-spacing:2.5px;
-    margin-bottom:1.2rem;padding-bottom:0.7rem;border-bottom:1px solid #111827;
+.dr-company-meta {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem;
+    color: #5a6e8c;
+    margin-bottom: 1.6rem;
+    text-align: center;
+    letter-spacing: 0.2px;
 }
-.forensic-card{flex:1;background:#090e1a;border-radius:14px;padding:1.2rem;text-align:center;position:relative;overflow:hidden;}
-.forensic-score{font-size:2.6rem;font-weight:700;line-height:1;letter-spacing:-1.5px;margin:0.4rem 0;}
-.forensic-label{font-family:'JetBrains Mono',monospace;font-size:0.58rem;text-transform:uppercase;letter-spacing:2px;color:#4b5563;margin-bottom:0.3rem;}
-.forensic-verdict{font-family:'JetBrains Mono',monospace;font-size:0.6rem;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;padding:3px 12px;border-radius:20px;display:inline-block;margin-top:0.4rem;}
-.comp-table{width:100%;border-collapse:collapse;margin-top:0.8rem;}
-.comp-table th{font-family:'JetBrains Mono',monospace;font-size:0.56rem;color:#2d3a55;text-transform:uppercase;letter-spacing:2px;padding:6px 8px;border-bottom:1px solid #0d1726;text-align:left;}
-.comp-table td{font-size:0.72rem;padding:7px 8px;border-bottom:1px solid #0a1020;color:#6b7280;vertical-align:middle;}
-.comp-table tr:last-child td{border-bottom:none;}
-.comp-table tr:hover td{background:rgba(255,255,255,0.015);}
-.comp-flag{color:#ef4444;font-weight:700;} .comp-ok{color:#34d399;}
-.comp-mono{font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:#e5e7eb;}
-.gov-item{background:#090e1a;border-radius:10px;padding:0.85rem 1rem;margin-bottom:0.5rem;border-left:3px solid transparent;}
-.gov-item.HIGH{border-left-color:#ef4444;background:rgba(220,38,38,0.05);}
-.gov-item.MEDIUM{border-left-color:#f59e0b;background:rgba(245,158,11,0.05);}
-.gov-item.LOW{border-left-color:#3b82f6;background:rgba(59,130,246,0.05);}
-.gov-date{font-family:'JetBrains Mono',monospace;font-size:0.58rem;color:#374151;margin-bottom:3px;}
-.gov-detail{font-size:0.78rem;color:#9ca3af;line-height:1.5;}
-.gov-sev{font-family:'JetBrains Mono',monospace;font-size:0.55rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;float:right;padding:2px 8px;border-radius:4px;}
-.gov-sev.HIGH{color:#ef4444;background:rgba(220,38,38,0.1);}
-.gov-sev.MEDIUM{color:#f59e0b;background:rgba(245,158,11,0.1);}
-.gov-sev.LOW{color:#60a5fa;background:rgba(59,130,246,0.1);}
-.quarter-card{background:#090e1a;border:1px solid #151e33;border-radius:12px;padding:1rem 1.1rem;margin-bottom:0.7rem;}
-.quarter-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.7rem;}
-.quarter-label{font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:#6b7280;font-weight:600;}
-.quarter-tone{font-family:'JetBrains Mono',monospace;font-size:0.55rem;padding:3px 10px;border-radius:6px;text-transform:uppercase;letter-spacing:1px;}
-.tone-Confident{color:#34d399;background:rgba(52,211,153,0.1);}
-.tone-Cautious{color:#f59e0b;background:rgba(245,158,11,0.1);}
-.tone-Evasive{color:#ef4444;background:rgba(220,38,38,0.1);}
-.tone-Defensive{color:#f87171;background:rgba(248,113,113,0.1);}
-.tone-Optimistic{color:#60a5fa;background:rgba(96,165,250,0.1);}
-.quarter-theme{font-size:0.72rem;color:#6b7280;line-height:1.6;}
-.quarter-source{font-family:'JetBrains Mono',monospace;font-size:0.55rem;color:#374151;margin-top:5px;}
-.flag-track{background:#090e1a;border-radius:12px;padding:1rem 1.1rem;margin-bottom:0.6rem;border:1px solid #151e33;}
-.flag-track-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.6rem;}
-.flag-track-name{font-size:0.82rem;font-weight:600;color:#e5e7eb;}
-.flag-track-status{font-family:'JetBrains Mono',monospace;font-size:0.55rem;font-weight:700;letter-spacing:1.5px;padding:3px 10px;border-radius:6px;white-space:nowrap;}
-.status-Resolved{color:#34d399;background:rgba(52,211,153,0.1);}
-.status-Improving{color:#60a5fa;background:rgba(96,165,250,0.1);}
-.status-Persistent{color:#f59e0b;background:rgba(245,158,11,0.1);}
-.status-Worsening{color:#ef4444;background:rgba(220,38,38,0.1);}
-.status-Not-Addressed{color:#9ca3af;background:rgba(156,163,175,0.1);}
-.flag-q-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0.6rem 0;}
-.flag-q-cell{background:rgba(255,255,255,0.03);border-radius:6px;padding:6px 8px;}
-.flag-q-label{font-family:'JetBrains Mono',monospace;font-size:0.55rem;color:#374151;margin-bottom:2px;}
-.flag-q-text{font-size:0.66rem;color:#9ca3af;line-height:1.4;}
-.flag-insight{font-size:0.72rem;color:#6b7280;font-style:italic;margin-top:0.5rem;line-height:1.5;}
-.verdict-card{border-radius:18px;padding:2rem 2.4rem;margin-bottom:1.4rem;text-align:center;}
-.verdict-word{font-size:3.5rem;font-weight:700;letter-spacing:-2px;line-height:1;margin:0.5rem 0;}
-.verdict-desc{font-size:0.85rem;color:#6b7280;max-width:480px;margin:0.5rem auto;}
-.verdict-composite{font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:#374151;margin-top:0.7rem;}
-.reason-list{list-style:none;padding:0;margin:0.8rem 0;}
-.reason-list li{font-size:0.78rem;color:#9ca3af;padding:5px 0 5px 1.2rem;position:relative;line-height:1.5;}
-.reason-list li::before{content:'→';position:absolute;left:0;}
-.reason-list li.neg::before{color:#ef4444;} .reason-list li.pos::before{color:#34d399;}
-.score-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:0.55rem;}
-.score-bar-label{font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:#4b5563;width:140px;flex-shrink:0;text-transform:uppercase;}
-.score-bar-track{flex:1;background:rgba(255,255,255,0.04);border-radius:4px;height:6px;overflow:hidden;}
-.score-bar-fill{height:100%;border-radius:4px;}
-.score-bar-val{font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:#374151;width:36px;text-align:right;}
-.positive-chip{
-    display:inline-flex;align-items:center;gap:4px;background:rgba(34,197,94,0.07);
-    border:1px solid rgba(34,197,94,0.2);color:#4ade80;font-size:0.7rem;
-    padding:4px 12px;border-radius:20px;margin:3px 4px 3px 0;
+.dr-score-row {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    justify-content: center;
 }
-.dr-empty{text-align:center;padding:2rem;color:#374151;font-size:0.78rem;}
-.ai-stack-badge{
-    display:inline-flex;align-items:center;gap:6px;background:rgba(34,197,94,0.07);
-    border:1px solid rgba(34,197,94,0.2);color:#4ade80;font-family:'JetBrains Mono',monospace;
-    font-size:0.55rem;letter-spacing:1px;padding:3px 10px;border-radius:6px;margin-bottom:1rem;
+.dr-score-pill {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 12px 20px;
+    min-width: 110px;
+}
+.dr-score-pill .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    color: #3d4f6e;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+}
+.dr-score-pill .val {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    line-height: 1;
+}
+
+/* ── Section wrapper ── */
+.dr-section {
+    background: #0b1120;
+    border: 1px solid #192138;
+    border-radius: 18px;
+    padding: 2rem 2.2rem;
+    margin-bottom: 1.8rem;
+}
+.dr-section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    margin-bottom: 1.4rem;
+    padding-bottom: 0.9rem;
+    border-bottom: 1px solid #111827;
+}
+.dr-section-subtitle {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.75rem;
+    color: #3d4f6e;
+    font-weight: 400;
+    margin-left: auto;
+    letter-spacing: 0;
+}
+
+/* ── Forensic cards ── */
+.forensic-card {
+    flex: 1;
+    background: #090e1a;
+    border-radius: 16px;
+    padding: 1.5rem;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+.forensic-score {
+    font-family: 'Outfit', sans-serif;
+    font-size: 3.2rem;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -2px;
+    margin: 0.5rem 0;
+}
+.forensic-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #3d4f6e;
+    margin-bottom: 0.3rem;
+    font-weight: 500;
+}
+.forensic-verdict {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    display: inline-block;
+    margin-top: 0.5rem;
+}
+.forensic-threshold {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    color: #3d4f6e;
+    margin-top: 10px;
+}
+
+/* ── Component tables ── */
+.comp-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+.comp-table th {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    color: #2d3a55;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    padding: 8px 10px;
+    border-bottom: 1px solid #0d1726;
+    text-align: left;
+}
+.comp-table td {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.82rem;
+    padding: 9px 10px;
+    border-bottom: 1px solid #0a1020;
+    color: #7a8ca8;
+    vertical-align: middle;
+    line-height: 1.4;
+}
+.comp-table tr:last-child td { border-bottom: none; }
+.comp-table tr:hover td { background: rgba(255,255,255,0.015); }
+.comp-flag { color: #f87171; font-weight: 700; font-size: 0.88rem; }
+.comp-ok   { color: #34d399; font-size: 0.88rem; }
+.comp-mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.76rem;
+    color: #c9d2e8;
+}
+
+/* ── Governance items ── */
+.gov-item {
+    background: #090e1a;
+    border-radius: 12px;
+    padding: 1rem 1.2rem;
+    margin-bottom: 0.6rem;
+    border-left: 3px solid transparent;
+}
+.gov-item.HIGH   { border-left-color: #ef4444; background: rgba(220,38,38,0.05); }
+.gov-item.MEDIUM { border-left-color: #f59e0b; background: rgba(245,158,11,0.05); }
+.gov-item.LOW    { border-left-color: #3b82f6; background: rgba(59,130,246,0.05); }
+.gov-date   {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.64rem;
+    color: #374151;
+    margin-bottom: 4px;
+}
+.gov-detail {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    color: #8492b0;
+    line-height: 1.55;
+}
+.gov-sev {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    float: right;
+    padding: 3px 9px;
+    border-radius: 5px;
+}
+.gov-sev.HIGH   { color: #ef4444; background: rgba(220,38,38,0.1); }
+.gov-sev.MEDIUM { color: #f59e0b; background: rgba(245,158,11,0.1); }
+.gov-sev.LOW    { color: #60a5fa; background: rgba(59,130,246,0.1); }
+.gov-category-label {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #4b5563;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin: 14px 0 6px;
+}
+
+/* ── Quarter cards ── */
+.quarter-card {
+    background: #090e1a;
+    border: 1px solid #151e33;
+    border-radius: 14px;
+    padding: 1.2rem 1.3rem;
+    margin-bottom: 0.8rem;
+}
+.quarter-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.8rem;
+}
+.quarter-label {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.82rem;
+    color: #7a8ca8;
+    font-weight: 600;
+}
+.quarter-tone {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    padding: 4px 12px;
+    border-radius: 7px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.tone-Confident  { color: #34d399; background: rgba(52,211,153,0.1); }
+.tone-Cautious   { color: #f59e0b; background: rgba(245,158,11,0.1); }
+.tone-Evasive    { color: #ef4444; background: rgba(220,38,38,0.1); }
+.tone-Defensive  { color: #f87171; background: rgba(248,113,113,0.1); }
+.tone-Optimistic { color: #60a5fa; background: rgba(96,165,250,0.1); }
+.quarter-theme {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.83rem;
+    color: #5a6e8c;
+    line-height: 1.65;
+}
+.quarter-source {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    color: #374151;
+    margin-top: 6px;
+}
+
+/* ── Flag tracking ── */
+.flag-track {
+    background: #090e1a;
+    border-radius: 14px;
+    padding: 1.2rem 1.3rem;
+    margin-bottom: 0.7rem;
+    border: 1px solid #151e33;
+}
+.flag-track-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.7rem;
+}
+.flag-track-name {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #e5e7eb;
+}
+.flag-track-status {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    padding: 4px 11px;
+    border-radius: 6px;
+    white-space: nowrap;
+}
+.status-Resolved      { color: #34d399; background: rgba(52,211,153,0.1); }
+.status-Improving     { color: #60a5fa; background: rgba(96,165,250,0.1); }
+.status-Persistent    { color: #f59e0b; background: rgba(245,158,11,0.1); }
+.status-Worsening     { color: #ef4444; background: rgba(220,38,38,0.1); }
+.status-Not-Addressed { color: #9ca3af; background: rgba(156,163,175,0.1); }
+.flag-q-grid {
+    display: grid;
+    grid-template-columns: repeat(4,1fr);
+    gap: 8px;
+    margin: 0.7rem 0;
+}
+.flag-q-cell {
+    background: rgba(255,255,255,0.03);
+    border-radius: 8px;
+    padding: 8px 10px;
+}
+.flag-q-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    color: #374151;
+    margin-bottom: 3px;
+}
+.flag-q-text {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.75rem;
+    color: #7a8ca8;
+    line-height: 1.45;
+}
+.flag-insight {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8rem;
+    color: #5a6e8c;
+    font-style: italic;
+    margin-top: 0.6rem;
+    line-height: 1.55;
+}
+
+/* ── Verdict card ── */
+.verdict-card {
+    border-radius: 20px;
+    padding: 2.4rem 2.8rem;
+    margin-bottom: 1.6rem;
+    text-align: center;
+}
+.verdict-word {
+    font-family: 'Outfit', sans-serif;
+    font-size: 4rem;
+    font-weight: 800;
+    letter-spacing: -2px;
+    line-height: 1;
+    margin: 0.5rem 0;
+}
+.verdict-desc {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    color: #5a6e8c;
+    max-width: 500px;
+    margin: 0.6rem auto;
+    line-height: 1.6;
+}
+.verdict-composite {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: #374151;
+    margin-top: 0.8rem;
+    letter-spacing: 1px;
+}
+
+/* ── Reason list ── */
+.reason-list { list-style: none; padding: 0; margin: 0.8rem 0; }
+.reason-list li {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    color: #8492b0;
+    padding: 6px 0 6px 1.4rem;
+    position: relative;
+    line-height: 1.5;
+}
+.reason-list li::before { content: '→'; position: absolute; left: 0; }
+.reason-list li.neg::before { color: #ef4444; }
+.reason-list li.pos::before { color: #34d399; }
+
+/* ── Score bars ── */
+.score-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 0.65rem;
+}
+.score-bar-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.72rem;
+    color: #4b5563;
+    width: 150px;
+    flex-shrink: 0;
+    font-weight: 500;
+}
+.score-bar-track {
+    flex: 1;
+    background: rgba(255,255,255,0.04);
+    border-radius: 5px;
+    height: 7px;
+    overflow: hidden;
+}
+.score-bar-fill { height: 100%; border-radius: 5px; }
+.score-bar-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: #374151;
+    width: 38px;
+    text-align: right;
+}
+
+/* ── Positive chip ── */
+.positive-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(34,197,94,0.07);
+    border: 1px solid rgba(34,197,94,0.2);
+    color: #4ade80;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+    padding: 5px 13px;
+    border-radius: 20px;
+    margin: 4px 4px 4px 0;
+}
+
+/* ── Empty state ── */
+.dr-empty {
+    text-align: center;
+    padding: 2rem;
+    color: #374151;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    line-height: 1.6;
+}
+
+/* ── Section divider label ── */
+.sub-section-label {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #3d4f6e;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin: 1.2rem 0 0.7rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid #111827;
+}
+
+/* ── Search box in deep research ── */
+.dr-search-box {
+    background: #090e1a;
+    border: 1px solid #192138;
+    border-radius: 14px;
+    padding: 1.4rem 1.6rem;
+    margin-bottom: 1.6rem;
+}
+.dr-search-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #8492b0;
+    margin-bottom: 0.8rem;
+    letter-spacing: 0.2px;
 }
 </style>
 """
@@ -938,24 +1269,24 @@ DEEP_RESEARCH_CSS = """
 def _gauge_chart(score, color, title, min_val, max_val, threshold=None, threshold_label=""):
     fig = go.Figure(go.Indicator(
         mode="gauge+number", value=score,
-        title={'text': title, 'font': {'size': 10, 'color': '#6b7280', 'family': 'Space Grotesk'}},
-        number={'font': {'size': 28, 'color': color, 'family': 'JetBrains Mono'}, 'valueformat': '.3f'},
+        title={'text': title, 'font': {'size': 12, 'color': '#6b7280', 'family': 'DM Sans'}},
+        number={'font': {'size': 32, 'color': color, 'family': 'Outfit'}, 'valueformat': '.3f'},
         domain={'x': [0, 1], 'y': [0, 1]},
         gauge={
             'axis': {'range': [min_val, max_val], 'tickwidth': 0.5, 'tickcolor': '#1f2d47',
-                     'tickfont': {'color': '#2d3a55', 'size': 7}, 'nticks': 5},
+                     'tickfont': {'color': '#2d3a55', 'size': 9}, 'nticks': 5},
             'bar': {'color': color, 'thickness': 0.2}, 'bgcolor': '#080b14', 'borderwidth': 0,
             'threshold': {'line': {'color': '#f59e0b', 'width': 2}, 'thickness': 0.75,
                           'value': threshold if threshold else score},
         }
     ))
     fig.update_layout(
-        height=180, margin=dict(t=35, b=5, l=15, r=15),
+        height=190, margin=dict(t=40, b=8, l=18, r=18),
         paper_bgcolor='#0d1120', plot_bgcolor='#0d1120',
-        font=dict(color='#6b7280', family='Space Grotesk'),
+        font=dict(color='#6b7280', family='DM Sans'),
         annotations=[{'text': threshold_label, 'x': 0.5, 'y': -0.05,
                        'xref': 'paper', 'yref': 'paper', 'showarrow': False,
-                       'font': {'size': 8, 'color': '#f59e0b', 'family': 'JetBrains Mono'}}
+                       'font': {'size': 10, 'color': '#f59e0b', 'family': 'JetBrains Mono'}}
                      ] if threshold_label else []
     )
     return fig
@@ -968,11 +1299,11 @@ def _component_waterfall(components, title, color):
     fig = go.Figure(go.Bar(x=labels, y=values, marker=dict(color=colors, line=dict(width=0)),
                             hovertemplate="<b>%{x}</b><br>Weighted: %{y:.3f}<extra></extra>"))
     fig.update_layout(
-        title=dict(text=f"<b>{title}</b>", font=dict(size=10, color='#9ca3af', family='Space Grotesk'), x=0.5),
-        height=180, margin=dict(t=30, b=10, l=5, r=5),
+        title=dict(text=f"<b>{title}</b>", font=dict(size=11, color='#9ca3af', family='DM Sans'), x=0.5),
+        height=190, margin=dict(t=34, b=10, l=5, r=5),
         paper_bgcolor='#0d1120', plot_bgcolor='#0d1120',
-        font=dict(color='#6b7280', family='Space Grotesk'),
-        xaxis=dict(tickfont=dict(color='#4b5563', size=8, family='JetBrains Mono'), showgrid=False),
+        font=dict(color='#6b7280', family='DM Sans'),
+        xaxis=dict(tickfont=dict(color='#4b5563', size=10, family='JetBrains Mono'), showgrid=False),
         yaxis=dict(gridcolor='rgba(26,37,64,0.4)', showticklabels=False),
         bargap=0.3, showlegend=False,
     )
@@ -986,20 +1317,20 @@ def _verdict_radar(score_components):
     fig = go.Figure(go.Scatterpolar(
         r=values + [values[0]], theta=labels + [labels[0]],
         fill='toself', fillcolor='rgba(139,92,246,0.08)',
-        line=dict(color='#7c3aed', width=1.5), marker=dict(size=4, color='#a78bfa'),
+        line=dict(color='#7c3aed', width=1.5), marker=dict(size=5, color='#a78bfa'),
         hovertemplate="<b>%{theta}</b><br>Score: %{r}/10<extra></extra>",
     ))
     fig.update_layout(
         polar=dict(
             bgcolor='#090e1a',
             radialaxis=dict(visible=True, range=[0,10], gridcolor='rgba(26,37,64,0.6)',
-                            tickfont=dict(color='#2d3a55', size=7), tickvals=[2,4,6,8,10],
+                            tickfont=dict(color='#2d3a55', size=9), tickvals=[2,4,6,8,10],
                             linecolor='rgba(26,37,64,0.4)'),
             angularaxis=dict(gridcolor='rgba(26,37,64,0.4)',
-                             tickfont=dict(color='#4b5563', size=8, family='JetBrains Mono'),
+                             tickfont=dict(color='#5a6e8c', size=10, family='DM Sans'),
                              linecolor='rgba(26,37,64,0.4)'),
         ),
-        height=300, margin=dict(t=20, b=20, l=40, r=40),
+        height=320, margin=dict(t=24, b=24, l=48, r=48),
         paper_bgcolor='#0d1120', plot_bgcolor='#0d1120', showlegend=False,
     )
     return fig
@@ -1009,6 +1340,40 @@ def _check_api_keys():
     groq_ok   = bool(_get_groq_key())
     gemini_ok = bool(_get_gemini_key())
     return groq_ok, gemini_ok, groq_ok or gemini_ok
+
+
+def _fetch_company_data_for_deep_research(ticker_symbol):
+    """
+    Fetch basic company info directly in the Deep Research tab.
+    Returns a minimal result dict compatible with render_deep_research_tab().
+    Reuses yfinance if available; otherwise returns a stub for the user to handle.
+    """
+    try:
+        import yfinance as yf
+        t = yf.Ticker(ticker_symbol)
+        info = t.info
+        name   = info.get("longName") or info.get("shortName") or ticker_symbol
+        sector = info.get("sector") or "Unknown"
+        mcap   = info.get("marketCap")
+        mcap_cr = round(mcap / 1e7, 1) if mcap else None
+        de     = info.get("debtToEquity")
+        de_ratio = round(de / 100, 2) if de else None
+        promo  = None  # not in yfinance
+
+        # Minimal financial stubs — forensic models will default to neutral
+        result = {
+            "ticker": ticker_symbol, "name": name, "sector": sector,
+            "mcap_cr": mcap_cr, "de_ratio": de_ratio,
+            "promoter_holding_pct": promo,
+            "risk_score": 0, "manip_score": 0,
+            "risk_flags": [], "manip_flags": [],
+            "pnl": {}, "bs": {}, "cf": {},
+        }
+        return result, None
+    except ImportError:
+        return None, "yfinance not installed — pip install yfinance"
+    except Exception as e:
+        return None, f"Could not fetch data for {ticker_symbol}: {str(e)[:150]}"
 
 
 def render_deep_research_tab(result):
@@ -1027,31 +1392,25 @@ def render_deep_research_tab(result):
     mf       = result.get("manip_flags", [])
     nse_sym  = ticker.replace(".NS", "").replace(".BO", "")
 
-    # API key check
     groq_ok, gemini_ok, any_ok = _check_api_keys()
     if not any_ok:
         st.error(
             "🔑 **No AI API key found.**\n\n"
             "Add at least one to `.streamlit/secrets.toml`:\n"
-            "```toml\n"
-            "GROQ_API_KEY   = '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"
-            
-            "GEMINI_API_KEY = 'AIzaSyDhdKSmSOCqJ8hVvQHr-FwTXf5eRkjf9gg"
-            "```\n"
+            "```toml\nGROQ_API_KEY   = 'gsk_...'\nGEMINI_API_KEY = 'AIza...'\n```\n"
             "**Free keys:**\n"
             "- Groq → console.groq.com (14,400 req/day free)\n"
             "- Gemini → aistudio.google.com (1,500 req/day free)"
         )
         return
 
-    # Show active AI stack
     active = (["⚡ Groq"] if groq_ok else []) + (["✦ Gemini"] if gemini_ok else [])
     st.markdown(
         f'<div class="ai-stack-badge">🤖 {" + ".join(active)} &nbsp;·&nbsp; 🔍 DuckDuckGo Search (free)</div>',
         unsafe_allow_html=True
     )
 
-    # Snapshot header
+    # ── SNAPSHOT HEADER ───────────────────────────────────────
     risk_color  = "#ef4444" if risk_sc >= 6 else "#f59e0b" if risk_sc >= 3 else "#22c55e"
     manip_color = "#a78bfa" if manip_sc >= 6 else "#c4b5fd" if manip_sc >= 3 else "#6ee7b7"
     st.markdown(f"""
@@ -1064,14 +1423,26 @@ def render_deep_research_tab(result):
         &nbsp;·&nbsp; Promoter: {f'{promo:.1f}%' if promo else '—'}
       </div>
       <div class="dr-score-row">
-        <div class="dr-score-pill"><span class="label">Financial Risk</span><span class="val" style="color:{risk_color};">{risk_sc}/10</span></div>
-        <div class="dr-score-pill"><span class="label">Manip Signal</span><span class="val" style="color:{manip_color};">{manip_sc}/10</span></div>
-        <div class="dr-score-pill"><span class="label">Total Flags</span><span class="val" style="color:#9ca3af;">{len(rf)+len(mf)}</span></div>
-        <div class="dr-score-pill"><span class="label">Date</span><span class="val" style="color:#4b5563;font-size:0.7rem;">{datetime.now().strftime('%d %b %Y')}</span></div>
+        <div class="dr-score-pill">
+          <span class="label">Financial Risk</span>
+          <span class="val" style="color:{risk_color};">{risk_sc}/10</span>
+        </div>
+        <div class="dr-score-pill">
+          <span class="label">Manip Signal</span>
+          <span class="val" style="color:{manip_color};">{manip_sc}/10</span>
+        </div>
+        <div class="dr-score-pill">
+          <span class="label">Total Flags</span>
+          <span class="val" style="color:#9ca3af;">{len(rf)+len(mf)}</span>
+        </div>
+        <div class="dr-score-pill">
+          <span class="label">Date</span>
+          <span class="val" style="color:#4b5563;font-size:0.85rem;">{datetime.now().strftime('%d %b %Y')}</span>
+        </div>
       </div>
     </div>""", unsafe_allow_html=True)
 
-    # ── FORENSIC MODELS ───────────────────────────────────────
+    # ── SECTION 1: FORENSIC MODELS ────────────────────────────
     with st.spinner("⚙️ Computing Beneish M-Score and Altman Z-Score…"):
         m_result = compute_beneish_mscore(result)
         z_result = compute_altman_zscore(result, sector)
@@ -1079,8 +1450,9 @@ def render_deep_research_tab(result):
     st.markdown("""
     <div class="dr-section">
       <div class="dr-section-title" style="color:#a78bfa;">
-        <span style="width:7px;height:7px;border-radius:50%;background:#a78bfa;display:inline-block;box-shadow:0 0 8px rgba(167,139,250,0.5);"></span>
-        Forensic Risk Models
+        <span style="width:9px;height:9px;border-radius:50%;background:#a78bfa;display:inline-block;box-shadow:0 0 10px rgba(167,139,250,0.6);flex-shrink:0;"></span>
+        01 &nbsp;— Forensic Risk Models
+        <span class="dr-section-subtitle">Beneish M-Score · Altman Z-Score</span>
       </div>""", unsafe_allow_html=True)
 
     col_m, col_z = st.columns(2)
@@ -1094,22 +1466,22 @@ def render_deep_research_tab(result):
           <div class="forensic-verdict" style="color:{mc};background:rgba(167,139,250,0.08);border:1px solid rgba(167,139,250,0.2);">
             {m_result['verdict_icon']} {m_result['interpretation']}
           </div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:0.55rem;color:#374151;margin-top:8px;">Threshold: &gt; -1.78 = likely manipulator</div>
+          <div class="forensic-threshold">Threshold: &gt; -1.78 = likely manipulator</div>
         </div>""", unsafe_allow_html=True)
         st.plotly_chart(_gauge_chart(m_result["score"], mc, "M-Score", -4, 0, -1.78, "⚠ -1.78 threshold"),
                         use_container_width=True, config={"displayModeBar": False}, key="gauge_mscore")
         st.plotly_chart(_component_waterfall(m_result["components"], "Weighted contributions", mc),
                         use_container_width=True, config={"displayModeBar": False}, key="bar_mscore")
         if m_result["red_flags"]:
-            st.markdown(f"<div style='font-family:JetBrains Mono,monospace;font-size:0.6rem;color:#ef4444;margin:8px 0 4px;'>🚩 {len(m_result['red_flags'])} component(s) above threshold</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='font-family:JetBrains Mono,monospace;font-size:0.68rem;color:#ef4444;margin:10px 0 5px;'>🚩 {len(m_result['red_flags'])} component(s) above threshold</div>", unsafe_allow_html=True)
         rows = "".join(
             f"<tr><td class='comp-mono'>{k}</td><td class='comp-mono'>{v['value']}</td>"
-            f"<td style='font-size:0.65rem;color:#374151;'>×{v['weight']}</td>"
+            f"<td style='font-family:JetBrains Mono,monospace;font-size:0.72rem;color:#374151;'>×{v['weight']}</td>"
             f"<td class='{'comp-flag' if v.get('flag') else 'comp-ok'}'>{'⚑' if v.get('flag') else '✓'}</td>"
-            f"<td style='font-size:0.65rem;color:#374151;max-width:160px;'>{v['note'][:60]}…</td></tr>"
+            f"<td style='font-size:0.78rem;color:#5a6e8c;'>{v['note'][:65]}…</td></tr>"
             for k, v in m_result["components"].items()
         )
-        st.markdown(f"<table class='comp-table'><thead><tr><th>Factor</th><th>Value</th><th>Weight</th><th>Flag</th><th>Note</th></tr></thead><tbody>{rows}</tbody></table>", unsafe_allow_html=True)
+        st.markdown(f"<table class='comp-table'><thead><tr><th>Factor</th><th>Value</th><th>Wt</th><th>Flag</th><th>Note</th></tr></thead><tbody>{rows}</tbody></table>", unsafe_allow_html=True)
         if m_result["missing"]: st.caption(f"⚠️ Defaulted to neutral: {', '.join(m_result['missing'])}")
 
     with col_z:
@@ -1121,7 +1493,7 @@ def render_deep_research_tab(result):
           <div class="forensic-verdict" style="color:{zc};background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);">
             {z_result['verdict_icon']} {z_result['interpretation']}
           </div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:0.55rem;color:#374151;margin-top:8px;">&lt;1.81 distress · 1.81–2.99 grey · &gt;2.99 safe</div>
+          <div class="forensic-threshold">&lt;1.81 distress · 1.81–2.99 grey · &gt;2.99 safe</div>
         </div>""", unsafe_allow_html=True)
         st.plotly_chart(_gauge_chart(z_result["score"], zc, "Z-Score", 0, 5, 1.81, "⚠ 1.81 distress zone"),
                         use_container_width=True, config={"displayModeBar": False}, key="gauge_zscore")
@@ -1130,23 +1502,23 @@ def render_deep_research_tab(result):
         rows = "".join(
             f"<tr><td class='comp-mono'>{k}</td>"
             f"<td class='comp-mono' style='color:{'#34d399' if v['value']>0 else '#f87171'};'>{v['value']:.4f}</td>"
-            f"<td style='font-size:0.65rem;color:#374151;'>×{v['weight']}</td>"
-            f"<td style='font-size:0.65rem;color:#374151;'>{v['label']}</td></tr>"
+            f"<td style='font-family:JetBrains Mono,monospace;font-size:0.72rem;color:#374151;'>×{v['weight']}</td>"
+            f"<td style='font-size:0.78rem;color:#5a6e8c;'>{v['label']}</td></tr>"
             for k, v in z_result["components"].items()
         )
-        st.markdown(f"<table class='comp-table'><thead><tr><th>Factor</th><th>Value</th><th>Weight</th><th>What it measures</th></tr></thead><tbody>{rows}</tbody></table>", unsafe_allow_html=True)
+        st.markdown(f"<table class='comp-table'><thead><tr><th>Factor</th><th>Value</th><th>Wt</th><th>What it measures</th></tr></thead><tbody>{rows}</tbody></table>", unsafe_allow_html=True)
         if z_result["is_financial"]: st.info("ℹ️ Z-Score is less reliable for banks/NBFCs.", icon="ℹ️")
         if z_result["missing"]: st.caption(f"⚠️ Defaulted to 0: {', '.join(z_result['missing'])}")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # ── GOVERNANCE SCAN ───────────────────────────────────────
+    # ── SECTION 2: GOVERNANCE SCAN ────────────────────────────
     st.markdown("""
     <div class="dr-section">
-      <div class="dr-section-title" style="color:#ef4444;">
-        <span style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block;box-shadow:0 0 8px rgba(239,68,68,0.5);"></span>
-        Governance &amp; News Intelligence
-        <span style="margin-left:auto;font-size:0.55rem;color:#374151;text-transform:none;letter-spacing:0;">DuckDuckGo + Groq/Gemini · Flag-driven</span>
+      <div class="dr-section-title" style="color:#f87171;">
+        <span style="width:9px;height:9px;border-radius:50%;background:#ef4444;display:inline-block;box-shadow:0 0 10px rgba(239,68,68,0.6);flex-shrink:0;"></span>
+        02 &nbsp;— Governance &amp; News Intelligence
+        <span class="dr-section-subtitle">DuckDuckGo + Groq/Gemini · Flag-driven queries</span>
       </div>""", unsafe_allow_html=True)
 
     gov_key = f"gov_{ticker}"
@@ -1163,9 +1535,9 @@ def render_deep_research_tab(result):
         st.markdown(f"""
         <div class="forensic-card" style="border:1px solid rgba(239,68,68,0.15);">
           <div class="forensic-label">Governance Risk Score</div>
-          <div class="forensic-score" style="color:{gc};">{g_score}<span style="font-size:1rem;color:#374151;">/10</span></div>
+          <div class="forensic-score" style="color:{gc};">{g_score}<span style="font-family:'DM Sans',sans-serif;font-size:1.2rem;color:#374151;">/10</span></div>
           <div class="forensic-verdict" style="color:{gc};background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.15);">{g_risk}</div>
-          <div style="font-size:0.68rem;color:#6b7280;margin-top:12px;line-height:1.5;">{gov.get('summary','')[:180]}</div>
+          <div style="font-family:'DM Sans',sans-serif;font-size:0.82rem;color:#5a6e8c;margin-top:14px;line-height:1.6;">{gov.get('summary','')[:200]}</div>
         </div>""", unsafe_allow_html=True)
 
     with col_g2:
@@ -1178,7 +1550,7 @@ def render_deep_research_tab(result):
             items = gov.get(cat_key, [])
             if items:
                 any_found = True
-                st.markdown(f"<div style='font-family:JetBrains Mono,monospace;font-size:0.6rem;color:#374151;text-transform:uppercase;letter-spacing:1.5px;margin:10px 0 5px;'>{cat_label}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='gov-category-label'>{cat_label}</div>", unsafe_allow_html=True)
                 for item in items:
                     sev = item.get("severity", "MEDIUM")
                     st.markdown(f"""
@@ -1191,7 +1563,7 @@ def render_deep_research_tab(result):
             st.success("✅ No major governance red flags found.")
         positives = gov.get("positive_signals", [])
         if positives:
-            st.markdown("<div style='font-family:JetBrains Mono,monospace;font-size:0.6rem;color:#374151;text-transform:uppercase;letter-spacing:1.5px;margin:12px 0 6px;'>✅ Positive Signals</div>", unsafe_allow_html=True)
+            st.markdown("<div class='gov-category-label'>✅ Positive Signals</div>", unsafe_allow_html=True)
             st.markdown("".join(f'<span class="positive-chip">✓ {p}</span>' for p in positives[:6]), unsafe_allow_html=True)
         if gov.get("sources_checked"):
             st.caption(f"Sources: {', '.join(gov['sources_checked'][:5])}")
@@ -1200,13 +1572,13 @@ def render_deep_research_tab(result):
         del st.session_state[gov_key]; st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # ── CONCALL INTELLIGENCE ──────────────────────────────────
+    # ── SECTION 3: CONCALL INTELLIGENCE ──────────────────────
     st.markdown("""
     <div class="dr-section">
       <div class="dr-section-title" style="color:#60a5fa;">
-        <span style="width:7px;height:7px;border-radius:50%;background:#60a5fa;display:inline-block;box-shadow:0 0 8px rgba(96,165,250,0.5);"></span>
-        Concall Intelligence — Management Credibility Tracker
-        <span style="margin-left:auto;font-size:0.55rem;color:#374151;text-transform:none;letter-spacing:0;">DuckDuckGo + Groq/Gemini · Last 4 quarters</span>
+        <span style="width:9px;height:9px;border-radius:50%;background:#60a5fa;display:inline-block;box-shadow:0 0 10px rgba(96,165,250,0.6);flex-shrink:0;"></span>
+        03 &nbsp;— Concall Intelligence
+        <span class="dr-section-subtitle">Management Credibility Tracker · Last 4 quarters</span>
       </div>""", unsafe_allow_html=True)
 
     cc_key = f"cc_{ticker}"
@@ -1225,35 +1597,35 @@ def render_deep_research_tab(result):
         st.markdown(f"""
         <div class="forensic-card" style="border:1px solid rgba(96,165,250,0.15);">
           <div class="forensic-label">Management Credibility</div>
-          <div class="forensic-score" style="color:{cc_color};">{cc_score}<span style="font-size:1rem;color:#374151;">/10</span></div>
+          <div class="forensic-score" style="color:{cc_color};">{cc_score}<span style="font-family:'DM Sans',sans-serif;font-size:1.2rem;color:#374151;">/10</span></div>
           <div class="forensic-verdict" style="color:{cc_color};background:rgba(96,165,250,0.05);border:1px solid rgba(96,165,250,0.15);">{cc_cred}</div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:0.58rem;color:#374151;margin-top:8px;">{qf}/4 quarters found</div>
-          <div style="font-size:0.68rem;color:#6b7280;margin-top:10px;line-height:1.5;">{cc.get('summary','')[:200]}</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:#374151;margin-top:10px;">{qf}/4 quarters found</div>
+          <div style="font-family:'DM Sans',sans-serif;font-size:0.82rem;color:#5a6e8c;margin-top:12px;line-height:1.6;">{cc.get('summary','')[:220]}</div>
         </div>""", unsafe_allow_html=True)
-        for label, key, color in [("🔴 Key Concerns","key_concerns","#9ca3af"),("✅ Positives","positive_signals","#4ade80")]:
+        for label, key, color in [("🔴 Key Concerns","key_concerns","#8492b0"),("✅ Positives","positive_signals","#4ade80")]:
             items = cc.get(key, [])
             if items:
-                st.markdown(f"<div style='font-family:JetBrains Mono,monospace;font-size:0.58rem;color:#374151;text-transform:uppercase;letter-spacing:1.5px;margin:10px 0 4px;'>{label}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='gov-category-label'>{label}</div>", unsafe_allow_html=True)
                 for item in items[:4]:
-                    st.markdown(f"<div style='font-size:0.72rem;color:{color};padding:3px 0;'>→ {item}</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-family:DM Sans,sans-serif;font-size:0.82rem;color:{color};padding:4px 0;line-height:1.5;'>→ {item}</div>", unsafe_allow_html=True)
 
     with col_c2:
         quarters = cc.get("quarters_data", [])
         if quarters:
-            st.markdown("<div style='font-family:JetBrains Mono,monospace;font-size:0.6rem;color:#374151;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;'>Quarterly Commentary</div>", unsafe_allow_html=True)
+            st.markdown("<div class='gov-category-label'>Quarterly Commentary</div>", unsafe_allow_html=True)
             for q in quarters:
                 tone   = q.get("management_tone","Neutral")
                 themes = " · ".join(q.get("key_themes",[])[:3]) or "No themes extracted"
                 cred   = q.get("credibility_score",5)
                 cred_c = "#22c55e" if cred>=7 else "#f59e0b" if cred>=4 else "#ef4444"
                 source = q.get("source","")
-                rfc_html = "".join(f"<div style='font-size:0.65rem;color:#f87171;padding:2px 0;'>⚠ {r}</div>" for r in q.get("red_flags_in_call",[])[:2])
+                rfc_html = "".join(f"<div style='font-family:DM Sans,sans-serif;font-size:0.78rem;color:#f87171;padding:3px 0;'>⚠ {r}</div>" for r in q.get("red_flags_in_call",[])[:2])
                 st.markdown(f"""
                 <div class="quarter-card">
                   <div class="quarter-header">
                     <span class="quarter-label">{q.get('quarter','?')} · {q.get('date','')}</span>
-                    <div style="display:flex;align-items:center;gap:8px;">
-                      <span style="font-family:'JetBrains Mono',monospace;font-size:0.55rem;color:{cred_c};">Credibility: {cred}/10</span>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                      <span style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:{cred_c};">Credibility: {cred}/10</span>
                       <span class="quarter-tone tone-{tone.replace(' ','')}">{tone}</span>
                     </div>
                   </div>
@@ -1266,21 +1638,21 @@ def render_deep_research_tab(result):
 
     flag_tracks = cc.get("flag_tracking", [])
     if flag_tracks:
-        st.markdown("<div style='font-family:JetBrains Mono,monospace;font-size:0.6rem;color:#374151;text-transform:uppercase;letter-spacing:1.5px;margin:1rem 0 0.7rem;border-top:1px solid #111827;padding-top:1rem;'>Red Flag → Management Explanation Tracker</div>", unsafe_allow_html=True)
+        st.markdown("<div class='sub-section-label'>Red Flag → Management Explanation Tracker</div>", unsafe_allow_html=True)
         for ft in flag_tracks:
             trend    = ft.get("trend","Not Addressed")
             q_by_q   = ft.get("q_by_q",{})
             credible = ft.get("management_credible", True)
             q_cells  = "".join(
-                f"<div class='flag-q-cell'><div class='flag-q-label'>{qn}</div><div class='flag-q-text'>{str(q_by_q.get(qn,'—'))[:80]}</div></div>"
+                f"<div class='flag-q-cell'><div class='flag-q-label'>{qn}</div><div class='flag-q-text'>{str(q_by_q.get(qn,'—'))[:90]}</div></div>"
                 for qn in ["Q1","Q2","Q3","Q4"]
             )
             st.markdown(f"""
             <div class="flag-track">
               <div class="flag-track-header">
                 <div class="flag-track-name">{ft.get('flag','Unknown')}</div>
-                <div style="display:flex;align-items:center;gap:8px;">
-                  <span style="font-family:'JetBrains Mono',monospace;font-size:0.55rem;color:{'#34d399' if credible else '#f59e0b'};">{'✓ Credible' if credible else '⚠ Questionable'}</span>
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:{'#34d399' if credible else '#f59e0b'};">{'✓ Credible' if credible else '⚠ Questionable'}</span>
                   <span class="flag-track-status status-{trend.replace(' ','-')}">{trend}</span>
                 </div>
               </div>
@@ -1292,7 +1664,15 @@ def render_deep_research_tab(result):
         del st.session_state[cc_key]; st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # ── FINAL VERDICT ─────────────────────────────────────────
+    # ── SECTION 4: FINAL VERDICT ──────────────────────────────
+    st.markdown("""
+    <div class="dr-section">
+      <div class="dr-section-title" style="color:#fbbf24;">
+        <span style="width:9px;height:9px;border-radius:50%;background:#fbbf24;display:inline-block;box-shadow:0 0 10px rgba(251,191,36,0.6);flex-shrink:0;"></span>
+        04 &nbsp;— Final Verdict
+        <span class="dr-section-subtitle">Composite score across all dimensions</span>
+      </div>""", unsafe_allow_html=True)
+
     verdict = compute_final_verdict(
         risk_sc, manip_sc, m_result, z_result,
         st.session_state.get(gov_key, {}),
@@ -1301,7 +1681,7 @@ def render_deep_research_tab(result):
     vc = verdict["verdict_color"]
     st.markdown(f"""
     <div class="verdict-card" style="background:{verdict['verdict_bg']};border:1px solid {verdict['verdict_border']};">
-      <div style="font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:#374151;text-transform:uppercase;letter-spacing:2.5px;margin-bottom:0.4rem;">Final Verdict</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:#374151;text-transform:uppercase;letter-spacing:2.5px;margin-bottom:0.5rem;">Final Verdict</div>
       <div class="verdict-word" style="color:{vc};">{verdict['verdict_icon']} {verdict['verdict']}</div>
       <div class="verdict-desc">{verdict['verdict_desc']}</div>
       <div class="verdict-composite">Composite risk score: {verdict['composite_score']}/10</div>
@@ -1324,13 +1704,15 @@ def render_deep_research_tab(result):
               <div class="score-bar-val" style="color:{color};">{val}/{mx}</div>
             </div>""", unsafe_allow_html=True)
         if verdict["reasons"]:
-            st.markdown(f"<div style='margin-top:1rem;'><div style='font-family:JetBrains Mono,monospace;font-size:0.58rem;color:#374151;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;'>Risk Drivers</div><ul class='reason-list'>{''.join(f'<li class=\"neg\">{r}</li>' for r in verdict['reasons'])}</ul></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='margin-top:1.2rem;'><div style='font-family:Outfit,sans-serif;font-size:0.78rem;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;'>Risk Drivers</div><ul class='reason-list'>{''.join(f'<li class=\"neg\">{r}</li>' for r in verdict['reasons'])}</ul></div>", unsafe_allow_html=True)
         if verdict["positives"]:
-            st.markdown(f"<div style='margin-top:0.6rem;'><div style='font-family:JetBrains Mono,monospace;font-size:0.58rem;color:#374151;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;'>Positive Signals</div><ul class='reason-list'>{''.join(f'<li class=\"pos\">{p}</li>' for p in verdict['positives'])}</ul></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='margin-top:0.8rem;'><div style='font-family:Outfit,sans-serif;font-size:0.78rem;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;'>Positive Signals</div><ul class='reason-list'>{''.join(f'<li class=\"pos\">{p}</li>' for p in verdict['positives'])}</ul></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
+    st.markdown("</div>", unsafe_allow_html=True)
+
     st.markdown("""
-    <div style="margin-top:1rem;padding:0.8rem 1rem;background:rgba(255,255,255,0.02);border:1px solid #111827;border-radius:10px;font-size:0.65rem;color:#374151;line-height:1.6;">
+    <div style="margin-top:1rem;padding:1rem 1.3rem;background:rgba(255,255,255,0.02);border:1px solid #111827;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:0.78rem;color:#374151;line-height:1.7;">
       ⚠️ <strong style="color:#4b5563;">Not investment advice.</strong>
       Beneish M-Score and Altman Z-Score are probabilistic indicators, not proof of manipulation or distress.
       DuckDuckGo search results may be incomplete. Always verify with official BSE/NSE filings.
@@ -1339,34 +1721,108 @@ def render_deep_research_tab(result):
 
 
 # ══════════════════════════════════════════════════════════════
-#  INTEGRATION HELPER
+#  INTEGRATION HELPER  — render_deep_research_selector
+#  Updated: has its OWN search box, independent of main app
 # ══════════════════════════════════════════════════════════════
 
-def render_deep_research_selector(all_results):
-    """Call inside `with tab_deep_research:` in app.py"""
-    if not all_results:
+def render_deep_research_selector(all_results=None):
+    """
+    Call inside `with tab_deep_research:` in app.py.
+
+    Now supports TWO modes:
+      1. Pick from already-analysed companies (passed via all_results)
+      2. Direct ticker search — enter any NSE ticker right here
+    """
+    st.markdown(DEEP_RESEARCH_CSS, unsafe_allow_html=True)
+
+    # ── Mode tabs ────────────────────────────────────────────
+    mode_tab1, mode_tab2 = st.tabs([
+        "🔍  Search Any Company",
+        "📋  From Analysed List",
+    ])
+
+    # ── MODE 1: Direct search ─────────────────────────────────
+    with mode_tab1:
         st.markdown("""
-        <div style="text-align:center;padding:3rem 1rem;color:#374151;">
-          <div style="font-size:2rem;margin-bottom:1rem;">🔬</div>
-          <div style="font-size:0.9rem;color:#4b5563;margin-bottom:0.4rem;">No companies analysed yet</div>
-          <div style="font-size:0.75rem;color:#2d3a55;">Go to <strong style="color:#4b5563;">Search &amp; Analyse</strong>, analyse companies, then return here.</div>
+        <div class="dr-search-box">
+          <div class="dr-search-title">Enter an NSE ticker or company name to run deep research directly</div>
         </div>""", unsafe_allow_html=True)
-        return
 
-    company_options = {
-        f"{r['name']} ({r['ticker'].replace('.NS','')}) — Risk: {r['risk_score']}/10": r
-        for r in all_results
-    }
-    selected_label  = st.selectbox("Select company for deep research", options=list(company_options.keys()))
-    selected_result = company_options[selected_label]
+        col_inp, col_suffix = st.columns([3, 1])
+        with col_inp:
+            raw_input = st.text_input(
+                "NSE ticker / company name",
+                placeholder="e.g.  INFY  or  TATAMOTORS  or  20MICRONS",
+                label_visibility="collapsed",
+                key="dr_direct_ticker_input",
+            )
+        with col_suffix:
+            exchange = st.selectbox(
+                "Exchange", [".NS (NSE)", ".BO (BSE)"],
+                label_visibility="collapsed",
+                key="dr_exchange_select",
+            )
 
-    col_btn, col_note = st.columns([1, 3])
-    with col_btn:
-        run_btn = st.button("🔬 Run Deep Research →", type="primary", key="dr_run_btn")
-    with col_note:
-        st.caption("Beneish M-Score · Altman Z-Score · Governance scan · Concall analysis · ~30–60 sec")
+        suffix = ".NS" if exchange.startswith(".NS") else ".BO"
+        ticker_raw = raw_input.strip().upper()
+        full_ticker = ticker_raw + suffix if ticker_raw and not ticker_raw.endswith((".NS", ".BO")) else ticker_raw
 
-    dr_key = f"dr_done_{selected_result['ticker']}"
-    if run_btn or dr_key in st.session_state:
-        st.session_state[dr_key] = True
-        render_deep_research_tab(selected_result)
+        col_btn, col_note = st.columns([1, 3])
+        with col_btn:
+            direct_run = st.button("🔬 Run Deep Research →", type="primary", key="dr_direct_run_btn",
+                                   disabled=not bool(ticker_raw))
+        with col_note:
+            st.caption("Fetches company data via yfinance · Beneish M-Score · Altman Z-Score · Governance · Concall · ~30–60 sec")
+
+        if direct_run and full_ticker:
+            with st.spinner(f"Fetching data for {full_ticker}…"):
+                result, err = _fetch_company_data_for_deep_research(full_ticker)
+            if err:
+                st.error(f"❌ {err}")
+            else:
+                st.session_state[f"dr_direct_result_{full_ticker}"] = result
+                st.session_state[f"dr_direct_done_{full_ticker}"] = True
+
+        # Render if result available
+        for k, v in st.session_state.items():
+            if k.startswith("dr_direct_done_") and v:
+                tk = k.replace("dr_direct_done_", "")
+                result = st.session_state.get(f"dr_direct_result_{tk}")
+                if result:
+                    st.divider()
+                    render_deep_research_tab(result)
+                    break
+
+    # ── MODE 2: From analysed list ────────────────────────────
+    with mode_tab2:
+        if not all_results:
+            st.markdown("""
+            <div style="text-align:center;padding:3rem 1rem;color:#374151;">
+              <div style="font-size:2.2rem;margin-bottom:1rem;">📋</div>
+              <div style="font-family:'Outfit',sans-serif;font-size:1rem;color:#4b5563;margin-bottom:0.5rem;">No companies analysed yet</div>
+              <div style="font-family:'DM Sans',sans-serif;font-size:0.82rem;color:#2d3a55;">
+                Go to <strong style="color:#4b5563;">Search &amp; Analyse</strong>, analyse some companies,
+                then return here — or use the <em>Search Any Company</em> tab above.
+              </div>
+            </div>""", unsafe_allow_html=True)
+            return
+
+        company_options = {
+            f"{r['name']} ({r['ticker'].replace('.NS','').replace('.BO','')}) — Risk: {r['risk_score']}/10": r
+            for r in all_results
+        }
+        selected_label  = st.selectbox("Select company for deep research",
+                                        options=list(company_options.keys()),
+                                        key="dr_list_select")
+        selected_result = company_options[selected_label]
+
+        col_btn2, col_note2 = st.columns([1, 3])
+        with col_btn2:
+            run_btn = st.button("🔬 Run Deep Research →", type="primary", key="dr_list_run_btn")
+        with col_note2:
+            st.caption("Beneish M-Score · Altman Z-Score · Governance scan · Concall analysis · ~30–60 sec")
+
+        dr_key = f"dr_done_{selected_result['ticker']}"
+        if run_btn or dr_key in st.session_state:
+            st.session_state[dr_key] = True
+            render_deep_research_tab(selected_result)
