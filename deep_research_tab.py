@@ -1342,29 +1342,148 @@ def _check_api_keys():
     return groq_ok, gemini_ok, groq_ok or gemini_ok
 
 
+# ──────────────────────────────────────────────────────────────
+#  NSE COMPANY LIST  (same loader used in the main app)
+# ──────────────────────────────────────────────────────────────
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def _load_nse_company_list():
+    """
+    Returns {display_label: ticker_with_suffix} dict.
+    Tries local EQUITY_L.csv first, then multiple GitHub mirrors,
+    then falls back to a curated 60-stock list.
+    """
+    from io import StringIO
+
+    def _parse_csv_text(text):
+        df = pd.read_csv(StringIO(text))
+        df.columns = [c.strip() for c in df.columns]
+        if "SYMBOL" not in df.columns:
+            return None
+        name_col = "NAME OF COMPANY" if "NAME OF COMPANY" in df.columns else None
+        if name_col is None:
+            return None
+        company_dict = {}
+        for _, row in df.iterrows():
+            sym  = str(row["SYMBOL"]).strip()
+            name = str(row[name_col]).strip()
+            if sym and name and sym != "nan" and name != "nan":
+                company_dict[f"{name}  ({sym})"] = f"{sym}.NS"
+        return company_dict if len(company_dict) > 500 else None
+
+    # 1. Local file
+    for path in ["EQUITY_L.csv", "./EQUITY_L.csv", "data/EQUITY_L.csv"]:
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                    result = _parse_csv_text(f.read().strip())
+                if result:
+                    return result
+            except Exception:
+                pass
+
+    # 2. Remote mirrors
+    sources = [
+        {
+            "url": "https://archives.nseindia.com/content/equities/EQUITY_L.csv",
+            "headers": {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                              "AppleWebKit/537.36 (KHTML, like Gecko) "
+                              "Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.5",
+                "Referer": "https://www.nseindia.com/",
+            },
+        },
+        {
+            "url": "https://raw.githubusercontent.com/punkzberryz/nse-stock-data/main/data/EQUITY_L.csv",
+            "headers": {"User-Agent": "Mozilla/5.0"},
+        },
+        {
+            "url": "https://raw.githubusercontent.com/iamsmkr/til/main/nse/EQUITY_L.csv",
+            "headers": {"User-Agent": "Mozilla/5.0"},
+        },
+        {
+            "url": "https://raw.githubusercontent.com/harshildarji/NSE-Stocks/master/EQUITY_L.csv",
+            "headers": {"User-Agent": "Mozilla/5.0"},
+        },
+        {
+            "url": "https://www1.nseindia.com/content/equities/EQUITY_L.csv",
+            "headers": {
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                              "AppleWebKit/537.36 (KHTML, like Gecko) "
+                              "Chrome/119.0.0.0 Safari/537.36",
+                "Referer": "https://www1.nseindia.com/",
+            },
+        },
+    ]
+    for src in sources:
+        try:
+            resp = requests.get(src["url"], headers=src["headers"], timeout=15)
+            resp.raise_for_status()
+            text = resp.text.strip()
+            if len(text) < 500:
+                continue
+            result = _parse_csv_text(text)
+            if result:
+                return result
+        except Exception:
+            continue
+
+    # 3. Fallback curated list
+    tickers = [
+        ("Reliance Industries","RELIANCE"),("TCS","TCS"),("Infosys","INFY"),
+        ("HDFC Bank","HDFCBANK"),("ICICI Bank","ICICIBANK"),("Wipro","WIPRO"),
+        ("Adani Enterprises","ADANIENT"),("Yes Bank","YESBANK"),("Zomato","ZOMATO"),
+        ("Paytm","PAYTM"),("Bajaj Finance","BAJFINANCE"),("ITC","ITC"),
+        ("L&T","LT"),("Sun Pharma","SUNPHARMA"),("Tata Motors","TATAMOTORS"),
+        ("ONGC","ONGC"),("Coal India","COALINDIA"),("SBI","SBIN"),
+        ("Axis Bank","AXISBANK"),("Maruti Suzuki","MARUTI"),
+        ("HCL Tech","HCLTECH"),("Tech Mahindra","TECHM"),
+        ("NTPC","NTPC"),("Power Grid","POWERGRID"),("Tata Steel","TATASTEEL"),
+        ("JSW Steel","JSWSTEEL"),("Hindalco","HINDALCO"),("Vedanta","VEDL"),
+        ("NMDC","NMDC"),("Dr Reddy's","DRREDDY"),("Cipla","CIPLA"),
+        ("Divis Labs","DIVISLAB"),("Lupin","LUPIN"),("Aurobindo Pharma","AUROPHARMA"),
+        ("Hindustan Unilever","HINDUNILVR"),("Nestle India","NESTLEIND"),
+        ("Britannia","BRITANNIA"),("Dabur","DABUR"),("Marico","MARICO"),
+        ("DLF","DLF"),("Godrej Properties","GODREJPROP"),("Prestige Estates","PRESTIGE"),
+        ("Tata Power","TATAPOWER"),("Adani Ports","ADANIPORTS"),
+        ("Bajaj Auto","BAJAJ-AUTO"),("Eicher Motors","EICHERMOT"),
+        ("Hero MotoCorp","HEROMOTOCO"),("Ashok Leyland","ASHOKLEY"),
+        ("TVS Motor","TVSMOTOR"),("Muthoot Finance","MUTHOOTFIN"),
+        ("Cholamandalam Finance","CHOLAFIN"),("Shriram Finance","SHRIRAMFIN"),
+        ("Federal Bank","FEDERALBNK"),("Bandhan Bank","BANDHANBNK"),
+        ("Kotak Mahindra Bank","KOTAKBANK"),("IndusInd Bank","INDUSINDBK"),
+        ("Tata Communications","TATACOMM"),("Adani Green","ADANIGREEN"),
+        ("JSW Energy","JSWENERGY"),("Torrent Power","TORNTPOWER"),
+        ("Bajaj Finserv","BAJAJFINSV"),("M&M","M&M"),("HDFCLIFE","HDFCLIFE"),
+        ("SBILIFE","SBILIFE"),("ICICIPRULI","ICICIPRULI"),("Nykaa","NYKAA"),
+        ("Delhivery","DELHIVERY"),("PolicyBazaar","POLICYBZR"),
+        ("20 Microns","20MICRONS"),
+    ]
+    return {f"{name}  ({sym})": f"{sym}.NS" for name, sym in tickers}
+
+
 def _fetch_company_data_for_deep_research(ticker_symbol):
     """
-    Fetch basic company info directly in the Deep Research tab.
+    Fetch company info via yfinance for the Deep Research tab.
     Returns a minimal result dict compatible with render_deep_research_tab().
-    Reuses yfinance if available; otherwise returns a stub for the user to handle.
     """
     try:
         import yfinance as yf
-        t = yf.Ticker(ticker_symbol)
+        t    = yf.Ticker(ticker_symbol)
         info = t.info
-        name   = info.get("longName") or info.get("shortName") or ticker_symbol
-        sector = info.get("sector") or "Unknown"
-        mcap   = info.get("marketCap")
-        mcap_cr = round(mcap / 1e7, 1) if mcap else None
-        de     = info.get("debtToEquity")
+        name     = info.get("longName") or info.get("shortName") or ticker_symbol
+        sector   = info.get("sector") or "Unknown"
+        mcap     = info.get("marketCap")
+        mcap_cr  = round(mcap / 1e7, 1) if mcap else None
+        de       = info.get("debtToEquity")
         de_ratio = round(de / 100, 2) if de else None
-        promo  = None  # not in yfinance
 
-        # Minimal financial stubs — forensic models will default to neutral
         result = {
             "ticker": ticker_symbol, "name": name, "sector": sector,
             "mcap_cr": mcap_cr, "de_ratio": de_ratio,
-            "promoter_holding_pct": promo,
+            "promoter_holding_pct": None,
             "risk_score": 0, "manip_score": 0,
             "risk_flags": [], "manip_flags": [],
             "pnl": {}, "bs": {}, "cf": {},
@@ -1722,87 +1841,140 @@ def render_deep_research_tab(result):
 
 # ══════════════════════════════════════════════════════════════
 #  INTEGRATION HELPER  — render_deep_research_selector
-#  Updated: has its OWN search box, independent of main app
+#  Independent search: full NSE autocomplete + analysed-list tab
 # ══════════════════════════════════════════════════════════════
 
 def render_deep_research_selector(all_results=None):
     """
     Call inside `with tab_deep_research:` in app.py.
 
-    Now supports TWO modes:
-      1. Pick from already-analysed companies (passed via all_results)
-      2. Direct ticker search — enter any NSE ticker right here
+    TWO modes via tabs:
+      1. 🔍 Search Any Company  — full NSE ~2000+ autocomplete dropdown,
+         independent of the main Search & Analyse tab
+      2. 📋 From Analysed List  — pick from companies already run through
+         the red-flag pipeline (all_results from app.py)
     """
     st.markdown(DEEP_RESEARCH_CSS, unsafe_allow_html=True)
 
-    # ── Mode tabs ────────────────────────────────────────────
     mode_tab1, mode_tab2 = st.tabs([
-        "🔍  Search Any Company",
+        "🔍  Search Any NSE Company",
         "📋  From Analysed List",
     ])
 
-    # ── MODE 1: Direct search ─────────────────────────────────
+    # ─────────────────────────────────────────────────────────
+    #  MODE 1 — Full NSE autocomplete search
+    # ─────────────────────────────────────────────────────────
     with mode_tab1:
+
+        # Header card
         st.markdown("""
         <div class="dr-search-box">
-          <div class="dr-search-title">Enter an NSE ticker or company name to run deep research directly</div>
+          <div class="dr-search-title">
+            Search any listed NSE company and run deep research directly —
+            no need to analyse it in the main tab first
+          </div>
         </div>""", unsafe_allow_html=True)
 
-        col_inp, col_suffix = st.columns([3, 1])
-        with col_inp:
-            raw_input = st.text_input(
-                "NSE ticker / company name",
-                placeholder="e.g.  INFY  or  TATAMOTORS  or  20MICRONS",
-                label_visibility="collapsed",
-                key="dr_direct_ticker_input",
-            )
-        with col_suffix:
-            exchange = st.selectbox(
-                "Exchange", [".NS (NSE)", ".BO (BSE)"],
-                label_visibility="collapsed",
-                key="dr_exchange_select",
+        # Load the NSE list (cached for 24 h)
+        with st.spinner("Loading NSE company list…"):
+            nse_dict = _load_nse_company_list()
+
+        list_loaded = nse_dict and len(nse_dict) > 60
+        source_note = (
+            f"✅ {len(nse_dict):,} NSE companies loaded"
+            if list_loaded
+            else "⚠️ Using fallback list of ~70 companies — EQUITY_L.csv not reachable"
+        )
+        st.caption(source_note)
+
+        # ── Company selector (searchable dropdown) ────────────
+        company_labels = ["— select a company —"] + sorted(nse_dict.keys())
+        selected_label = st.selectbox(
+            "Search by company name or ticker symbol",
+            options=company_labels,
+            index=0,
+            key="dr_nse_company_select",
+            help="Start typing a company name or NSE symbol to filter the list",
+        )
+
+        selected_ticker = nse_dict.get(selected_label)  # None if placeholder selected
+
+        # ── Optional: override to BSE ─────────────────────────
+        col_exc, col_spacer = st.columns([1, 3])
+        with col_exc:
+            use_bse = st.checkbox("Use BSE (.BO) instead of NSE", key="dr_use_bse")
+        if selected_ticker and use_bse:
+            selected_ticker = selected_ticker.replace(".NS", ".BO")
+
+        # Show resolved ticker preview
+        if selected_ticker:
+            st.markdown(
+                f"<div style='font-family:JetBrains Mono,monospace;font-size:0.68rem;"
+                f"color:#5a6e8c;margin:4px 0 12px;'>Ticker: {selected_ticker}</div>",
+                unsafe_allow_html=True,
             )
 
-        suffix = ".NS" if exchange.startswith(".NS") else ".BO"
-        ticker_raw = raw_input.strip().upper()
-        full_ticker = ticker_raw + suffix if ticker_raw and not ticker_raw.endswith((".NS", ".BO")) else ticker_raw
-
+        # ── Run button ────────────────────────────────────────
         col_btn, col_note = st.columns([1, 3])
         with col_btn:
-            direct_run = st.button("🔬 Run Deep Research →", type="primary", key="dr_direct_run_btn",
-                                   disabled=not bool(ticker_raw))
+            direct_run = st.button(
+                "🔬 Run Deep Research →",
+                type="primary",
+                key="dr_direct_run_btn",
+                disabled=not bool(selected_ticker),
+            )
         with col_note:
-            st.caption("Fetches company data via yfinance · Beneish M-Score · Altman Z-Score · Governance · Concall · ~30–60 sec")
+            st.caption(
+                "Fetches live data via yfinance · Beneish M-Score · Altman Z-Score "
+                "· Governance scan · Concall intelligence · ~30–60 sec"
+            )
 
-        if direct_run and full_ticker:
-            with st.spinner(f"Fetching data for {full_ticker}…"):
-                result, err = _fetch_company_data_for_deep_research(full_ticker)
+        # ── Fetch + store result ──────────────────────────────
+        if direct_run and selected_ticker:
+            # Clear any previous result for this ticker so sections re-run
+            for key in [f"gov_{selected_ticker}", f"cc_{selected_ticker}",
+                        f"dr_direct_result_{selected_ticker}",
+                        f"dr_direct_done_{selected_ticker}"]:
+                st.session_state.pop(key, None)
+
+            with st.spinner(f"Fetching company data for {selected_ticker}…"):
+                result, err = _fetch_company_data_for_deep_research(selected_ticker)
+
             if err:
                 st.error(f"❌ {err}")
             else:
-                st.session_state[f"dr_direct_result_{full_ticker}"] = result
-                st.session_state[f"dr_direct_done_{full_ticker}"] = True
+                st.session_state[f"dr_direct_result_{selected_ticker}"] = result
+                st.session_state[f"dr_direct_done_{selected_ticker}"] = True
 
-        # Render if result available
-        for k, v in st.session_state.items():
+        # ── Render result if available ────────────────────────
+        # Show the most recently triggered ticker's result
+        active_tk = None
+        for k, v in list(st.session_state.items()):
             if k.startswith("dr_direct_done_") and v:
-                tk = k.replace("dr_direct_done_", "")
-                result = st.session_state.get(f"dr_direct_result_{tk}")
-                if result:
-                    st.divider()
-                    render_deep_research_tab(result)
-                    break
+                active_tk = k.replace("dr_direct_done_", "")
+                break
 
-    # ── MODE 2: From analysed list ────────────────────────────
+        if active_tk:
+            result = st.session_state.get(f"dr_direct_result_{active_tk}")
+            if result:
+                st.divider()
+                render_deep_research_tab(result)
+
+    # ─────────────────────────────────────────────────────────
+    #  MODE 2 — From already-analysed list
+    # ─────────────────────────────────────────────────────────
     with mode_tab2:
         if not all_results:
             st.markdown("""
-            <div style="text-align:center;padding:3rem 1rem;color:#374151;">
+            <div style="text-align:center;padding:3rem 1rem;">
               <div style="font-size:2.2rem;margin-bottom:1rem;">📋</div>
-              <div style="font-family:'Outfit',sans-serif;font-size:1rem;color:#4b5563;margin-bottom:0.5rem;">No companies analysed yet</div>
-              <div style="font-family:'DM Sans',sans-serif;font-size:0.82rem;color:#2d3a55;">
-                Go to <strong style="color:#4b5563;">Search &amp; Analyse</strong>, analyse some companies,
-                then return here — or use the <em>Search Any Company</em> tab above.
+              <div style="font-family:'Outfit',sans-serif;font-size:1rem;color:#4b5563;margin-bottom:0.5rem;">
+                No companies analysed yet
+              </div>
+              <div style="font-family:'DM Sans',sans-serif;font-size:0.82rem;color:#2d3a55;line-height:1.6;">
+                Go to <strong style="color:#4b5563;">Search &amp; Analyse</strong> to run the
+                red-flag pipeline first — or use the
+                <em>Search Any NSE Company</em> tab above to jump straight in.
               </div>
             </div>""", unsafe_allow_html=True)
             return
@@ -1811,16 +1983,21 @@ def render_deep_research_selector(all_results=None):
             f"{r['name']} ({r['ticker'].replace('.NS','').replace('.BO','')}) — Risk: {r['risk_score']}/10": r
             for r in all_results
         }
-        selected_label  = st.selectbox("Select company for deep research",
-                                        options=list(company_options.keys()),
-                                        key="dr_list_select")
-        selected_result = company_options[selected_label]
+        selected_lbl    = st.selectbox(
+            "Select a company from your analysis session",
+            options=list(company_options.keys()),
+            key="dr_list_select",
+        )
+        selected_result = company_options[selected_lbl]
 
         col_btn2, col_note2 = st.columns([1, 3])
         with col_btn2:
             run_btn = st.button("🔬 Run Deep Research →", type="primary", key="dr_list_run_btn")
         with col_note2:
-            st.caption("Beneish M-Score · Altman Z-Score · Governance scan · Concall analysis · ~30–60 sec")
+            st.caption(
+                "Uses pre-loaded financials · Beneish M-Score · Altman Z-Score "
+                "· Governance scan · Concall analysis · ~30–60 sec"
+            )
 
         dr_key = f"dr_done_{selected_result['ticker']}"
         if run_btn or dr_key in st.session_state:
