@@ -362,7 +362,7 @@ def call_gemini(prompt, system_prompt, max_tokens=2500):
     },
     timeout=60,
 )
-        )
+        
         if not resp.ok:
             return None, f"Gemini HTTP {resp.status_code}: {resp.text[:250]}"
         return resp.json()["candidates"][0]["content"]["parts"][0]["text"], None
