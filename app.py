@@ -1,16 +1,11 @@
 # ============================================================
-#  INDIA RED FLAG DASHBOARD  —  app.py  (v4 — UI Polish)
+#  INDIA RED FLAG DASHBOARD  —  app.py  (v4 — UI Polish + Contrast Fix)
 #
 #  Changes from v3:
 #  1. Nav cards: centered text, larger fonts, morph transition
 #  2. Financial tables: Outfit font, warmer & reader-friendly
 #  3. Charts: column-line combo with dotted trend lines
-#
-#  SECTION 1 — DATA LAYER
-#  SECTION 2 — ANALYSIS LAYER
-#             2A: Financial Risk Flags  (RED)
-#             2B: Manipulation Warning Signals  (PURPLE)
-#  SECTION 3 — UI LAYER
+#  4. Landing page visibility: improved contrast for text elements
 # ============================================================
 
 import streamlit as st
@@ -774,10 +769,13 @@ html, body, .stApp {
     margin-bottom: 1.8rem;
 }
 .hero-title .accent { color: #ef4444; font-style: italic; }
-.hero-title .dim { color: #1e2a40; }
+/* ====== IMPROVED VISIBILITY: dim text now readable ====== */
+.hero-title .dim { color: #6b7280; }
+
+/* ====== SUBTITLE NOW MUCH LIGHTER AND READABLE ====== */
 .hero-subtitle {
     font-size: 1.2rem;
-    color: #4b5e7a;
+    color: #9ca3af;
     max-width: 560px;
     line-height: 1.8;
     font-weight: 300;
@@ -807,10 +805,11 @@ html, body, .stApp {
     line-height: 1;
     margin-bottom: 0.4rem;
 }
+/* ====== STAT LABELS: increased contrast ====== */
 .stat-label {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.62rem;
-    color: #2d3a55;
+    color: #6b7280;
     text-transform: uppercase;
     letter-spacing: 2px;
 }
@@ -838,7 +837,7 @@ html, body, .stApp {
 .ticker-item {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.65rem;
-    color: #1e2a40;
+    color: #4b5563;
     text-transform: uppercase;
     letter-spacing: 2px;
     display: inline-flex;
@@ -874,9 +873,10 @@ html, body, .stApp {
     padding-bottom: 0.7rem;
     border-bottom: 1px solid #0a1020;
 }
+/* ====== ABOUT BODY TEXT: improved contrast ====== */
 .about-col-body {
     font-size: 0.88rem;
-    color: #2d3a55;
+    color: #6b7280;
     line-height: 1.85;
     font-weight: 300;
 }
@@ -1000,11 +1000,11 @@ html, body, .stApp {
     text-align: center;
     width: 100%;
 }
-/* Larger, more readable description */
+/* ====== FEATURE DESCRIPTION: much brighter for visibility ====== */
 .feat-desc {
     font-family: 'DM Sans', sans-serif;
     font-size: 1rem;
-    color: #38506b;
+    color: #8ca3b9;
     line-height: 1.85;
     font-weight: 300;
     margin-bottom: 1.8rem;
@@ -1198,7 +1198,8 @@ hr { border-color: #111827 !important; }
 .flag-card{border-radius:12px;padding:1rem 1.15rem;margin-bottom:0.6rem;}
 .flag-sev{font-family:'JetBrains Mono',monospace;font-size:0.6rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;}
 .flag-title{font-size:0.95rem;font-weight:600;color:#e5e7eb;margin-top:4px;line-height:1.4;}
-.flag-detail{font-size:0.82rem;color:#6b7280;margin-top:5px;line-height:1.6;}
+/* ====== FLAG DETAIL TEXT: improved visibility ====== */
+.flag-detail{font-size:0.82rem;color:#9ca3af;margin-top:5px;line-height:1.6;}
 
 /* ══════════════════════════════════════════════════════════
    CHANGE 2 — FINANCIAL STATEMENT TABLE TYPOGRAPHY
