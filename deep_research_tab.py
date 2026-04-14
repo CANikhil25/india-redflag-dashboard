@@ -1,7 +1,12 @@
 # ============================================================
-#  DEEP RESEARCH TAB  —  deep_research_tab.py
+#  DEEP RESEARCH TAB  —  deep_research_tab.py  (v2)
 #
-#  Integrates with the India Red Flag Dashboard (app.py)
+#  Changes from v1:
+#  1. Info tab — plain-English explanation of Beneish M-Score
+#     and Altman Z-Score with links to full papers
+#  2. Bug fix — "search another company" now works without
+#     refreshing. Added a "Search Another Company" reset button
+#     and ensured session state is scoped per-ticker properly.
 #
 #  AI STACK (fully free):
 #    - DuckDuckGo  → web search (no key needed)
@@ -745,10 +750,8 @@ def compute_final_verdict(risk_score, manip_score, m_score_result, z_score_resul
 
 DEEP_RESEARCH_CSS = """
 <style>
-/* ── Google Fonts ── */
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-/* ── Base token overrides ── */
 :root {
     --bg-deep:    #070c18;
     --bg-card:    #0b1120;
@@ -766,7 +769,6 @@ DEEP_RESEARCH_CSS = """
     --accent-blue:    #60a5fa;
 }
 
-/* ── AI Stack badge ── */
 .ai-stack-badge {
     display: inline-flex;
     align-items: center;
@@ -782,7 +784,6 @@ DEEP_RESEARCH_CSS = """
     margin-bottom: 1.2rem;
 }
 
-/* ── Snapshot header card ── */
 .dr-snapshot {
     background: linear-gradient(135deg, #070c18 0%, #0b1020 100%);
     border: 1px solid #192138;
@@ -866,7 +867,6 @@ DEEP_RESEARCH_CSS = """
     line-height: 1;
 }
 
-/* ── Section wrapper ── */
 .dr-section {
     background: #0b1120;
     border: 1px solid #192138;
@@ -895,7 +895,213 @@ DEEP_RESEARCH_CSS = """
     letter-spacing: 0;
 }
 
-/* ── Forensic cards ── */
+/* ── Info Tab Styles ── */
+.info-hero {
+    background: linear-gradient(135deg, #070c18, #0d1428);
+    border: 1px solid #192138;
+    border-radius: 20px;
+    padding: 2.2rem 2.5rem;
+    margin-bottom: 1.6rem;
+    text-align: center;
+}
+.info-hero-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: #eef0f7;
+    letter-spacing: -0.5px;
+    margin-bottom: 0.5rem;
+}
+.info-hero-sub {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    color: #4b6080;
+    line-height: 1.7;
+    max-width: 540px;
+    margin: 0 auto;
+}
+.info-model-card {
+    background: #070c18;
+    border: 1px solid #192138;
+    border-radius: 18px;
+    padding: 2rem 2.2rem;
+    margin-bottom: 1.4rem;
+    position: relative;
+    overflow: hidden;
+}
+.info-model-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+}
+.info-model-card.purple::before {
+    background: linear-gradient(90deg, transparent, rgba(167,139,250,0.7), transparent);
+}
+.info-model-card.red::before {
+    background: linear-gradient(90deg, transparent, rgba(239,68,68,0.7), transparent);
+}
+.info-model-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 1.2rem;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.info-model-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: #eef0f7;
+    letter-spacing: -0.3px;
+}
+.info-model-year {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    color: #374151;
+    background: #0d1726;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid #1c2640;
+    letter-spacing: 1px;
+}
+.info-model-what {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #8492b0;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 0.5rem;
+    font-size: 0.72rem;
+}
+.info-model-body {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem;
+    color: #5a6e8c;
+    line-height: 1.85;
+    margin-bottom: 1.3rem;
+}
+.info-threshold-box {
+    background: #0d1120;
+    border: 1px solid #1a2540;
+    border-radius: 12px;
+    padding: 1rem 1.2rem;
+    margin-bottom: 1.2rem;
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+.info-threshold-item {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+    min-width: 120px;
+}
+.info-threshold-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+}
+.info-threshold-value {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+.info-limitation {
+    background: rgba(245,158,11,0.05);
+    border: 1px solid rgba(245,158,11,0.15);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.82rem;
+    color: #6b7280;
+    line-height: 1.65;
+    margin-bottom: 1rem;
+}
+.info-limitation strong { color: #f59e0b; }
+.info-link-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 0.5rem;
+}
+.info-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #0d1726;
+    border: 1px solid #1c2640;
+    color: #60a5fa;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 500;
+    padding: 7px 16px;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: border-color 0.2s;
+}
+.info-link:hover { border-color: #3b82f6; }
+.info-factors-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 1.2rem;
+}
+.info-factor {
+    background: #0d1120;
+    border: 1px solid #1a2540;
+    border-radius: 10px;
+    padding: 0.75rem 0.9rem;
+}
+.info-factor-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 600;
+    margin-bottom: 3px;
+}
+.info-factor-name {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+    color: #4b6080;
+    line-height: 1.4;
+}
+.info-factor-flag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    color: #374151;
+    margin-top: 3px;
+}
+.info-comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 1.4rem;
+}
+.info-cmp-cell {
+    background: #0d1120;
+    border: 1px solid #1a2540;
+    border-radius: 12px;
+    padding: 1rem;
+}
+.info-cmp-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 0.5rem;
+}
+.info-cmp-text {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.82rem;
+    color: #4b6080;
+    line-height: 1.6;
+}
+
 .forensic-card {
     flex: 1;
     background: #090e1a;
@@ -939,7 +1145,6 @@ DEEP_RESEARCH_CSS = """
     margin-top: 10px;
 }
 
-/* ── Component tables ── */
 .comp-table {
     width: 100%;
     border-collapse: collapse;
@@ -974,7 +1179,6 @@ DEEP_RESEARCH_CSS = """
     color: #c9d2e8;
 }
 
-/* ── Governance items ── */
 .gov-item {
     background: #090e1a;
     border-radius: 12px;
@@ -1020,7 +1224,6 @@ DEEP_RESEARCH_CSS = """
     margin: 14px 0 6px;
 }
 
-/* ── Quarter cards ── */
 .quarter-card {
     background: #090e1a;
     border: 1px solid #151e33;
@@ -1066,7 +1269,6 @@ DEEP_RESEARCH_CSS = """
     margin-top: 6px;
 }
 
-/* ── Flag tracking ── */
 .flag-track {
     background: #090e1a;
     border-radius: 14px;
@@ -1132,7 +1334,6 @@ DEEP_RESEARCH_CSS = """
     line-height: 1.55;
 }
 
-/* ── Verdict card ── */
 .verdict-card {
     border-radius: 20px;
     padding: 2.4rem 2.8rem;
@@ -1163,7 +1364,6 @@ DEEP_RESEARCH_CSS = """
     letter-spacing: 1px;
 }
 
-/* ── Reason list ── */
 .reason-list { list-style: none; padding: 0; margin: 0.8rem 0; }
 .reason-list li {
     font-family: 'DM Sans', sans-serif;
@@ -1177,7 +1377,6 @@ DEEP_RESEARCH_CSS = """
 .reason-list li.neg::before { color: #ef4444; }
 .reason-list li.pos::before { color: #34d399; }
 
-/* ── Score bars ── */
 .score-bar-row {
     display: flex;
     align-items: center;
@@ -1208,7 +1407,6 @@ DEEP_RESEARCH_CSS = """
     text-align: right;
 }
 
-/* ── Positive chip ── */
 .positive-chip {
     display: inline-flex;
     align-items: center;
@@ -1223,7 +1421,6 @@ DEEP_RESEARCH_CSS = """
     margin: 4px 4px 4px 0;
 }
 
-/* ── Empty state ── */
 .dr-empty {
     text-align: center;
     padding: 2rem;
@@ -1233,7 +1430,6 @@ DEEP_RESEARCH_CSS = """
     line-height: 1.6;
 }
 
-/* ── Section divider label ── */
 .sub-section-label {
     font-family: 'Outfit', sans-serif;
     font-size: 0.85rem;
@@ -1246,7 +1442,6 @@ DEEP_RESEARCH_CSS = """
     border-top: 1px solid #111827;
 }
 
-/* ── Search box in deep research ── */
 .dr-search-box {
     background: #090e1a;
     border: 1px solid #192138;
@@ -1261,6 +1456,30 @@ DEEP_RESEARCH_CSS = """
     color: #8492b0;
     margin-bottom: 0.8rem;
     letter-spacing: 0.2px;
+}
+
+/* Reset button */
+.reset-search-bar {
+    background: rgba(239,68,68,0.06);
+    border: 1px solid rgba(239,68,68,0.2);
+    border-radius: 12px;
+    padding: 0.8rem 1.2rem;
+    margin-bottom: 1.4rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.reset-search-bar-text {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.82rem;
+    color: #5a6e8c;
+    flex: 1;
+}
+.reset-search-bar-ticker {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    color: #ef4444;
+    font-weight: 600;
 }
 </style>
 """
@@ -1342,17 +1561,260 @@ def _check_api_keys():
     return groq_ok, gemini_ok, groq_ok or gemini_ok
 
 
+# ══════════════════════════════════════════════════════════════
+#  INFO TAB — Plain-English explanation of academic models
+# ══════════════════════════════════════════════════════════════
+
+def render_info_tab():
+    """Renders the ℹ️ Info tab with plain-English explanations of Beneish M-Score and Altman Z-Score."""
+    st.markdown("""
+    <div class="info-hero">
+      <div class="info-model-year" style="display:inline-block;margin-bottom:0.8rem;">📖 ACADEMIC MODEL GUIDE</div>
+      <div class="info-hero-title">What do these scores actually mean?</div>
+      <div class="info-hero-sub">
+        Beneish M-Score and Altman Z-Score are academic models used by forensic accountants and
+        equity analysts worldwide. Here's what they measure, how to read them, and what their
+        limitations are — in plain English.
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── BENEISH M-SCORE ───────────────────────────────────────
+    st.markdown("""
+    <div class="info-model-card purple">
+      <div class="info-model-header">
+        <div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:#a78bfa;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">MODEL 01</div>
+          <div class="info-model-title">🟣 Beneish M-Score</div>
+        </div>
+        <div class="info-model-year">Messod Beneish · 1999</div>
+      </div>
+
+      <div class="info-model-what">What it detects</div>
+      <div class="info-model-body">
+        The Beneish M-Score is a mathematical model designed to detect whether a company has
+        <strong style="color:#a78bfa;">manipulated its reported earnings</strong>. It was developed by
+        Professor Messod Beneish at Indiana University after studying companies that were later found
+        guilty of financial fraud by the SEC. The model looks for patterns in financial data that
+        are common in companies that inflate revenue, delay expenses, or otherwise doctor their books.
+        <br><br>
+        Think of it like a lie-detector test for accounting — it doesn't prove fraud, but a
+        high score means the numbers behave in ways that are statistically unusual and deserve scrutiny.
+      </div>
+
+      <div class="info-model-what">How the score works</div>
+      <div class="info-threshold-box">
+        <div class="info-threshold-item">
+          <div class="info-threshold-label" style="color:#22c55e;">Below -2.22</div>
+          <div class="info-threshold-value" style="color:#22c55e;">🟢 Clean</div>
+          <div style="font-family:'DM Sans',sans-serif;font-size:0.75rem;color:#4b6080;margin-top:3px;">Unlikely manipulator</div>
+        </div>
+        <div class="info-threshold-item">
+          <div class="info-threshold-label" style="color:#f59e0b;">-2.22 to -1.78</div>
+          <div class="info-threshold-value" style="color:#f59e0b;">🟡 Grey Zone</div>
+          <div style="font-family:'DM Sans',sans-serif;font-size:0.75rem;color:#4b6080;margin-top:3px;">Monitor closely</div>
+        </div>
+        <div class="info-threshold-item">
+          <div class="info-threshold-label" style="color:#ef4444;">Above -1.78</div>
+          <div class="info-threshold-value" style="color:#ef4444;">🔴 Red Flag</div>
+          <div style="font-family:'DM Sans',sans-serif;font-size:0.75rem;color:#4b6080;margin-top:3px;">Likely manipulator</div>
+        </div>
+      </div>
+
+      <div class="info-model-what">The 8 factors it measures</div>
+      <div class="info-factors-grid">
+        <div class="info-factor">
+          <div class="info-factor-code" style="color:#a78bfa;">DSRI</div>
+          <div class="info-factor-name">Days Sales Receivable Index — are customers paying slower (a channel stuffing signal)?</div>
+          <div class="info-factor-flag">Flag if &gt; 1.465</div>
+        </div>
+        <div class="info-factor">
+          <div class="info-factor-code" style="color:#a78bfa;">GMI</div>
+          <div class="info-factor-name">Gross Margin Index — are margins deteriorating, creating pressure to manipulate?</div>
+          <div class="info-factor-flag">Flag if &gt; 1.193</div>
+        </div>
+        <div class="info-factor">
+          <div class="info-factor-code" style="color:#a78bfa;">AQI</div>
+          <div class="info-factor-name">Asset Quality Index — are non-cash, hard-to-value assets growing on the balance sheet?</div>
+          <div class="info-factor-flag">Flag if &gt; 1.254</div>
+        </div>
+        <div class="info-factor">
+          <div class="info-factor-code" style="color:#a78bfa;">SGI</div>
+          <div class="info-factor-name">Sales Growth Index — high growth creates pressure to keep the streak going artificially.</div>
+          <div class="info-factor-flag">Flag if &gt; 1.607</div>
+        </div>
+        <div class="info-factor">
+          <div class="info-factor-code" style="color:#a78bfa;">DEPI</div>
+          <div class="info-factor-name">Depreciation Index — is the company slowing depreciation to boost reported profit?</div>
+          <div class="info-factor-flag">Flag if &gt; 1.077</div>
+        </div>
+        <div class="info-factor">
+          <div class="info-factor-code" style="color:#a78bfa;">SGAI</div>
+          <div class="info-factor-name">Sales, General & Admin Index — disproportionate overhead growth vs revenue.</div>
+          <div class="info-factor-flag">Flag if &gt; 1.041</div>
+        </div>
+        <div class="info-factor">
+          <div class="info-factor-code" style="color:#a78bfa;">LVGI</div>
+          <div class="info-factor-name">Leverage Index — rising debt burden increases pressure to hit profit targets.</div>
+          <div class="info-factor-flag">Flag if &gt; 1.111</div>
+        </div>
+        <div class="info-factor">
+          <div class="info-factor-code" style="color:#a78bfa;">TATA</div>
+          <div class="info-factor-name">Total Accruals to Total Assets — the most powerful signal. Profit not backed by cash.</div>
+          <div class="info-factor-flag">Flag if &gt; 0.031 · Weight: 4.68×</div>
+        </div>
+      </div>
+
+      <div class="info-limitation">
+        <strong>⚠️ Limitations to keep in mind:</strong> The model was trained on US companies from the 1990s.
+        It works well for manufacturing and trading companies but is less reliable for banks, NBFCs,
+        and other financial services companies (which have structural reasons for high accruals).
+        A high M-Score is a signal to investigate further — not proof of fraud.
+        Many legitimate high-growth companies may score poorly simply due to rapid business expansion.
+      </div>
+
+      <div class="info-link-row">
+        <a class="info-link" href="https://onlinelibrary.wiley.com/doi/10.1111/j.1911-3846.1999.tb00586.x" target="_blank">📄 Original Paper (Beneish 1999)</a>
+        <a class="info-link" href="https://www.investopedia.com/terms/b/beneish-m-score.asp" target="_blank">📖 Investopedia Explainer</a>
+        <a class="info-link" href="https://www.screener.in/explore/" target="_blank">🔍 See it on Screener.in</a>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── ALTMAN Z-SCORE ────────────────────────────────────────
+    st.markdown("""
+    <div class="info-model-card red">
+      <div class="info-model-header">
+        <div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:#f87171;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">MODEL 02</div>
+          <div class="info-model-title">🔴 Altman Z-Score</div>
+        </div>
+        <div class="info-model-year">Edward Altman · 1968</div>
+      </div>
+
+      <div class="info-model-what">What it detects</div>
+      <div class="info-model-body">
+        The Altman Z-Score predicts the probability that a company will go <strong style="color:#f87171;">bankrupt within the next two years</strong>.
+        It was created by Professor Edward Altman at NYU Stern School of Business in 1968 — and despite
+        being over 50 years old, it remains one of the most widely used tools in credit risk analysis.
+        <br><br>
+        It combines five financial ratios, each weighted differently, to produce a single number.
+        The lower the score, the closer a company is to potential financial distress.
+        Auditors, banks, and institutional investors routinely use this as a first-pass filter
+        before extending credit or evaluating solvency.
+      </div>
+
+      <div class="info-model-what">How the score works</div>
+      <div class="info-threshold-box">
+        <div class="info-threshold-item">
+          <div class="info-threshold-label" style="color:#ef4444;">Below 1.81</div>
+          <div class="info-threshold-value" style="color:#ef4444;">🔴 Distress Zone</div>
+          <div style="font-family:'DM Sans',sans-serif;font-size:0.75rem;color:#4b6080;margin-top:3px;">High bankruptcy risk</div>
+        </div>
+        <div class="info-threshold-item">
+          <div class="info-threshold-label" style="color:#f59e0b;">1.81 to 2.99</div>
+          <div class="info-threshold-value" style="color:#f59e0b;">🟡 Grey Zone</div>
+          <div style="font-family:'DM Sans',sans-serif;font-size:0.75rem;color:#4b6080;margin-top:3px;">Financial stress possible</div>
+        </div>
+        <div class="info-threshold-item">
+          <div class="info-threshold-label" style="color:#22c55e;">Above 2.99</div>
+          <div class="info-threshold-value" style="color:#22c55e;">🟢 Safe Zone</div>
+          <div style="font-family:'DM Sans',sans-serif;font-size:0.75rem;color:#4b6080;margin-top:3px;">Financially healthy</div>
+        </div>
+      </div>
+
+      <div class="info-model-what">The 5 factors it measures</div>
+      <div class="info-factors-grid">
+        <div class="info-factor">
+          <div class="info-factor-code" style="color:#f87171;">X1 · Weight 1.2×</div>
+          <div class="info-factor-name">Working Capital / Total Assets — short-term liquidity. Negative means the company can't easily pay near-term bills.</div>
+        </div>
+        <div class="info-factor">
+          <div class="info-factor-code" style="color:#f87171;">X2 · Weight 1.4×</div>
+          <div class="info-factor-name">Retained Earnings / Total Assets — long-run profitability and reinvestment. Young companies naturally score low here.</div>
+        </div>
+        <div class="info-factor">
+          <div class="info-factor-code" style="color:#f87171;">X3 · Weight 3.3×</div>
+          <div class="info-factor-name">EBIT / Total Assets — the most heavily weighted factor. Core operating earnings power relative to asset base.</div>
+        </div>
+        <div class="info-factor">
+          <div class="info-factor-code" style="color:#f87171;">X4 · Weight 0.6×</div>
+          <div class="info-factor-name">Market Cap / Total Liabilities — market's confidence in the company vs its debt load.</div>
+        </div>
+        <div class="info-factor">
+          <div class="info-factor-code" style="color:#f87171;">X5 · Weight 1.0×</div>
+          <div class="info-factor-name">Revenue / Total Assets — asset efficiency, also known as asset turnover. How well assets generate sales.</div>
+        </div>
+      </div>
+
+      <div class="info-model-what">M-Score vs Z-Score at a glance</div>
+      <div class="info-comparison">
+        <div class="info-cmp-cell">
+          <div class="info-cmp-label">Beneish M-Score</div>
+          <div class="info-cmp-text">
+            • Detects <strong style="color:#a78bfa;">earnings manipulation</strong><br>
+            • Looks at accounting quality<br>
+            • 8 factors, all from P&L + BS<br>
+            • Score above -1.78 = red flag<br>
+            • Best for: non-financial companies
+          </div>
+        </div>
+        <div class="info-cmp-cell">
+          <div class="info-cmp-label">Altman Z-Score</div>
+          <div class="info-cmp-text">
+            • Detects <strong style="color:#f87171;">financial distress / bankruptcy risk</strong><br>
+            • Looks at solvency & liquidity<br>
+            • 5 factors, uses market cap too<br>
+            • Score below 1.81 = distress zone<br>
+            • Best for: non-financial companies
+          </div>
+        </div>
+      </div>
+
+      <div class="info-limitation">
+        <strong>⚠️ Limitations to keep in mind:</strong> The Z-Score was originally calibrated on US manufacturing
+        companies. It is <strong>not reliable for banks, NBFCs, insurance companies, or REITs</strong> because
+        these businesses are designed to carry high leverage by nature (that's the business model).
+        We display an "N/A" warning when we detect a financial sector company. Additionally,
+        very early-stage or pre-revenue companies will almost always score in the distress zone
+        even if they are well-funded — use discretion.
+      </div>
+
+      <div class="info-link-row">
+        <a class="info-link" href="https://www.jstor.org/stable/2978933" target="_blank">📄 Original Paper (Altman 1968)</a>
+        <a class="info-link" href="https://www.investopedia.com/terms/a/altman.asp" target="_blank">📖 Investopedia Explainer</a>
+        <a class="info-link" href="https://pages.stern.nyu.edu/~ealtman/" target="_blank">🎓 Altman's NYU Page</a>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── QUICK REFERENCE ──────────────────────────────────────
+    st.markdown("""
+    <div style="background:#070c18;border:1px solid #192138;border-radius:16px;padding:1.6rem 1.8rem;margin-top:0.5rem;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:#374151;text-transform:uppercase;letter-spacing:2px;margin-bottom:1rem;">HOW THIS TOOL USES THEM</div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:0.88rem;color:#4b6080;line-height:1.85;">
+        In the <strong style="color:#8492b0;">Deep Research</strong> tab, we run both models automatically using live financial
+        data from Yahoo Finance. The Beneish M-Score and Altman Z-Score each contribute
+        to the <strong style="color:#8492b0;">Final Verdict</strong> composite score alongside the AI governance scan,
+        concall credibility analysis, and our 18 proprietary red-flag checks.
+        <br><br>
+        Neither model alone should determine an investment decision. Use them as one layer in
+        a broader forensic investigation — alongside management commentary, auditor qualifications,
+        and sectoral context.
+      </div>
+      <div style="margin-top:1rem;font-family:'JetBrains Mono',monospace;font-size:0.62rem;color:#1e2a40;border-top:1px solid #111827;padding-top:0.8rem;">
+        Data source: Yahoo Finance (yfinance) · Not investment advice · Always verify with official BSE/NSE filings
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
 # ──────────────────────────────────────────────────────────────
-#  NSE COMPANY LIST  (same loader used in the main app)
+#  NSE COMPANY LIST
 # ──────────────────────────────────────────────────────────────
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def _load_nse_company_list():
-    """
-    Returns {display_label: ticker_with_suffix} dict.
-    Tries local EQUITY_L.csv first, then multiple GitHub mirrors,
-    then falls back to a curated 60-stock list.
-    """
     from io import StringIO
 
     def _parse_csv_text(text):
@@ -1371,7 +1833,6 @@ def _load_nse_company_list():
                 company_dict[f"{name}  ({sym})"] = f"{sym}.NS"
         return company_dict if len(company_dict) > 500 else None
 
-    # 1. Local file
     for path in ["EQUITY_L.csv", "./EQUITY_L.csv", "data/EQUITY_L.csv"]:
         if os.path.exists(path):
             try:
@@ -1382,7 +1843,6 @@ def _load_nse_company_list():
             except Exception:
                 pass
 
-    # 2. Remote mirrors
     sources = [
         {
             "url": "https://archives.nseindia.com/content/equities/EQUITY_L.csv",
@@ -1430,7 +1890,6 @@ def _load_nse_company_list():
         except Exception:
             continue
 
-    # 3. Fallback curated list
     tickers = [
         ("Reliance Industries","RELIANCE"),("TCS","TCS"),("Infosys","INFY"),
         ("HDFC Bank","HDFCBANK"),("ICICI Bank","ICICIBANK"),("Wipro","WIPRO"),
@@ -1466,13 +1925,9 @@ def _load_nse_company_list():
 
 # ──────────────────────────────────────────────────────────────
 #  FULL FINANCIAL DATA PIPELINE
-#  Mirrors app.py get_company_data() + run_all_checks() exactly
-#  so Beneish, Altman, and all red-flag checks work correctly
-#  when a company is searched directly from the Deep Research tab.
 # ──────────────────────────────────────────────────────────────
 
 def _dr_safe_row(df, names):
-    """Extract a named row from a yfinance statement DataFrame."""
     if df is None or df.empty:
         return None
     for name in names:
@@ -1495,36 +1950,7 @@ def _dr_series_cr(series):
         return None
     return series.apply(lambda x: round(x / 1e7, 2) if pd.notna(x) else None)
 
-def _dr_cagr(series, years=3):
-    if series is None:
-        return None
-    s = series.dropna()
-    if len(s) < 2:
-        return None
-    y = min(years, len(s) - 1)
-    a, b = float(s.iloc[0]), float(s.iloc[-1])
-    if a <= 0 or b <= 0 or y == 0:
-        return None
-    return (b / a) ** (1 / y) - 1
-
-def _dr_last(series):
-    if series is None or series.empty:
-        return None
-    s = series.dropna()
-    return float(s.iloc[-1]) if not s.empty else None
-
-def _dr_avg(series, n=3):
-    if series is None or series.empty:
-        return None
-    s = series.dropna().iloc[-n:]
-    return float(s.mean()) if not s.empty else None
-
-
 def _dr_get_company_data(ticker: str):
-    """
-    Full financial data fetch — identical structure to app.py get_company_data().
-    Returns the same dict shape so all 18 flag checks work correctly.
-    """
     try:
         import yfinance as yf
     except ImportError:
@@ -1593,7 +2019,6 @@ def _dr_get_company_data(ticker: str):
                 "investing": _dr_series_cr(_dr_safe_row(raw_cf, ["Investing Cash Flow", "Cash From Investing Activities"])),
             }
 
-            # Q4 revenue concentration
             q4_pct = None
             try:
                 if raw_qpnl is not None and not raw_qpnl.empty:
@@ -1649,14 +2074,9 @@ def _dr_get_company_data(ticker: str):
 
 
 def _dr_run_all_checks(data):
-    """
-    Run all 18 red-flag checks — identical to app.py run_all_checks().
-    Defined inline here so deep_research_tab.py has zero dependency on app.py.
-    """
     risk_flags  = []
     manip_flags = []
 
-    # ── helpers ──────────────────────────────────────────────
     def _last(s):
         if s is None or s.empty: return None
         s2 = s.dropna(); return float(s2.iloc[-1]) if not s2.empty else None
@@ -1675,9 +2095,6 @@ def _dr_run_all_checks(data):
     bs  = data.get("bs",  {})
     cf  = data.get("cf",  {})
 
-    # ── RISK CHECKS ──────────────────────────────────────────
-
-    # 1. Interest coverage
     ebit   = pnl.get("operating_profit")
     intexp = pnl.get("interest_exp")
     if ebit is not None and intexp is not None:
@@ -1693,7 +2110,6 @@ def _dr_run_all_checks(data):
                 risk_flags.append(("RISK","MEDIUM",f"Weak interest coverage ({icr:.1f}x)",
                     f"Coverage of {icr:.1f}x is below comfortable 3x+ threshold.", ev))
 
-    # 2. High leverage
     de     = data.get("de_ratio")
     sector = data.get("sector", "")
     if de is not None and "financial" not in sector.lower() and "bank" not in sector.lower():
@@ -1707,7 +2123,6 @@ def _dr_run_all_checks(data):
             risk_flags.append(("RISK","MEDIUM",f"Elevated Debt/Equity ({de:.1f}x)",
                 f"D/E of {de:.1f}x above 1x. Combine with interest coverage for full picture.", ev))
 
-    # 3. Sustained losses
     pat = pnl.get("net_profit")
     if pat is not None:
         s = pat.dropna(); loss_years = int((s < 0).sum())
@@ -1719,7 +2134,6 @@ def _dr_run_all_checks(data):
             risk_flags.append(("RISK","MEDIUM",f"Net loss in {loss_years} recent year(s)",
                 "Check if one-off or structural. Look at EBITDA to separate operating health.", ev))
 
-    # 4. Revenue decline
     rev = pnl.get("revenue")
     if rev is not None:
         rg = _cagr(rev, 3)
@@ -1728,7 +2142,6 @@ def _dr_run_all_checks(data):
             risk_flags.append(("RISK","MEDIUM",f"Revenue declining (3Y CAGR: {rg:.1%})",
                 f"Revenue falling at {abs(rg):.1%} per year.", ev))
 
-    # 5. Debt up, CFO down
     debt = bs.get("total_debt"); cfo = cf.get("cfo")
     if debt is not None and cfo is not None:
         d, c = debt.dropna(), cfo.dropna()
@@ -1739,13 +2152,11 @@ def _dr_run_all_checks(data):
                 risk_flags.append(("RISK","HIGH","Debt up 35%+ while CFO dropped 25%+",
                     "Borrowing significantly more while generating less operating cash.", ev))
 
-    # 6. Low promoter holding
     ph = data.get("promoter_holding_pct", 0)
     if ph and ph < 25:
         risk_flags.append(("RISK","LOW",f"Low promoter / insider holding ({ph:.1f}%)",
             f"Promoters hold only {ph:.1f}%. Watch for any further quarterly decline.", []))
 
-    # 7. Inventory buildup
     inv = bs.get("inventory")
     if inv is not None and rev is not None:
         ig = _cagr(inv, 3); rg2 = _cagr(rev, 3)
@@ -1755,9 +2166,6 @@ def _dr_run_all_checks(data):
             risk_flags.append(("RISK","MEDIUM",f"Inventory growing faster than revenue (gap: {ig-rg2:.0%})",
                 f"Inventory 3Y CAGR: {ig:.0%} vs Revenue 3Y CAGR: {rg2:.0%}.", ev))
 
-    # ── MANIPULATION CHECKS ──────────────────────────────────
-
-    # 8. CFO vs EBIT
     if cfo is not None and ebit is not None:
         ac, ae = _avg(cfo, 3), _avg(ebit, 3)
         if ac is not None and ae and ae != 0:
@@ -1771,7 +2179,6 @@ def _dr_run_all_checks(data):
                 manip_flags.append(("MANIP","MEDIUM",f"CFO below Operating Income ({r:.0%} ratio)",
                     f"CFO covers only {r:.0%} of reported operating profit (3yr avg).", ev))
 
-    # 9. CFO vs Net Profit
     if cfo is not None and pat is not None:
         ac, ap = _avg(cfo, 3), _avg(pat, 3)
         if ac is not None and ap and ap != 0:
@@ -1785,7 +2192,6 @@ def _dr_run_all_checks(data):
                 manip_flags.append(("MANIP","MEDIUM",f"Below-average CFO / Net Profit ratio ({r:.0%})",
                     f"CFO is {r:.0%} of net profit (3yr avg).", ev))
 
-    # 10. Negative CFO with profits
     if cfo is not None and pat is not None:
         neg_cfo = int((cfo.dropna() < 0).sum()); pos_pat = int((pat.dropna() > 0).sum())
         if neg_cfo >= 2 and pos_pat >= 3:
@@ -1794,7 +2200,6 @@ def _dr_run_all_checks(data):
             manip_flags.append(("MANIP","HIGH",f"Negative CFO in {neg_cfo} years despite reported profits",
                 f"Reported profits in {pos_pat} years but negative CFO in {neg_cfo} years.", ev))
 
-    # 11. Receivables vs Revenue
     rec = bs.get("receivables")
     if rev is not None and rec is not None:
         rg3, recg = _cagr(rev, 3), _cagr(rec, 3)
@@ -1809,7 +2214,6 @@ def _dr_run_all_checks(data):
                 manip_flags.append(("MANIP","MEDIUM","Receivables growing faster than revenue",
                     f"Revenue CAGR: {rg3:.0%} | Receivables CAGR: {recg:.0%} — gap of {gap:.0%}.", ev))
 
-    # 12. Revenue growth outlier
     reported_growth = data.get("revenue_growth_pct")
     if rev is not None:
         rg4 = _cagr(rev, 3)
@@ -1822,7 +2226,6 @@ def _dr_run_all_checks(data):
             manip_flags.append(("MANIP","LOW","Very high revenue growth — verify quality",
                 f"Revenue growth of {reported_growth:.0%} YoY warrants scrutiny.", ev))
 
-    # 13. Q4 revenue concentration
     q4_pct = data.get("q4_revenue_pct")
     if q4_pct is not None:
         if q4_pct > 0.40:
@@ -1832,7 +2235,6 @@ def _dr_run_all_checks(data):
             manip_flags.append(("MANIP","MEDIUM",f"Q4 revenue concentration elevated ({q4_pct:.0%} of annual)",
                 f"Q4 contributes {q4_pct:.0%} of annual revenue (>32% threshold).", []))
 
-    # 14. Margin anomaly
     if rev is not None and ebit is not None:
         rev_s  = rev.dropna().sort_index(); ebit_s = ebit.dropna().sort_index()
         common = rev_s.index.intersection(ebit_s.index)
@@ -1852,7 +2254,6 @@ def _dr_run_all_checks(data):
                         f"Sharp operating margin improvement (+{jump:.0%})",
                         f"Margin expanded {jump:.0%} in one year (to {latest_margin:.0%}).", ev))
 
-    # 15. Working capital manipulation
     pay = bs.get("payables"); inv2 = bs.get("inventory")
     if pay is not None and inv2 is not None and cfo is not None:
         pay_s = pay.dropna().sort_index(); inv_s = inv2.dropna().sort_index(); cfo_s = cfo.dropna().sort_index()
@@ -1873,8 +2274,8 @@ def _dr_run_all_checks(data):
                 manip_flags.append(("MANIP","HIGH","Working capital manipulation pattern detected",
                     "Payables rising 10%+ while inventory/receivables shrink with sudden CFO boost.", ev_list))
 
-    # 16. High goodwill
-    gw = bs.get("goodwill"); ta = bs.get("total_assets")
+    ta = bs.get("total_assets")
+    gw = bs.get("goodwill")
     if gw is not None and ta is not None:
         gw_l = _last(gw); ta_l = _last(ta)
         if gw_l is not None and ta_l and ta_l != 0:
@@ -1888,7 +2289,6 @@ def _dr_run_all_checks(data):
                 manip_flags.append(("MANIP","MEDIUM",f"Elevated goodwill-to-assets ratio ({ratio:.0%})",
                     f"Goodwill is {ratio:.0%} of total assets.", ev))
 
-    # 17. Deferred tax swings
     dt = bs.get("deferred_tax")
     if dt is not None:
         s = dt.dropna().sort_index()
@@ -1901,7 +2301,6 @@ def _dr_run_all_checks(data):
                 manip_flags.append(("MANIP","MEDIUM","Large recurring deferred tax fluctuations",
                     f"Deferred tax swung by >3% of total assets in {large_swings} years.", ev))
 
-    # 18. CapEx vs CFO
     capex = cf.get("capex")
     if cfo is not None and capex is not None:
         ac2  = _avg(cfo, 3)
@@ -1922,11 +2321,6 @@ def _dr_run_all_checks(data):
 
 
 def _fetch_company_data_for_deep_research(ticker_symbol: str):
-    """
-    Entry point called by render_deep_research_selector().
-    Fetches full financial data via yfinance and runs all 18 red-flag checks,
-    returning the same result dict shape as app.py's analyse_ticker().
-    """
     data, err = _dr_get_company_data(ticker_symbol)
     if err:
         return None, err
@@ -1971,7 +2365,6 @@ def render_deep_research_tab(result):
         unsafe_allow_html=True
     )
 
-    # ── SNAPSHOT HEADER ───────────────────────────────────────
     risk_color  = "#ef4444" if risk_sc >= 6 else "#f59e0b" if risk_sc >= 3 else "#22c55e"
     manip_color = "#a78bfa" if manip_sc >= 6 else "#c4b5fd" if manip_sc >= 3 else "#6ee7b7"
     st.markdown(f"""
@@ -2013,7 +2406,7 @@ def render_deep_research_tab(result):
       <div class="dr-section-title" style="color:#a78bfa;">
         <span style="width:9px;height:9px;border-radius:50%;background:#a78bfa;display:inline-block;box-shadow:0 0 10px rgba(167,139,250,0.6);flex-shrink:0;"></span>
         01 &nbsp;— Forensic Risk Models
-        <span class="dr-section-subtitle">Beneish M-Score · Altman Z-Score</span>
+        <span class="dr-section-subtitle">Beneish M-Score · Altman Z-Score &nbsp;·&nbsp; <em style="color:#374151;">See ℹ️ Info tab for explanations</em></span>
       </div>""", unsafe_allow_html=True)
 
     col_m, col_z = st.columns(2)
@@ -2030,9 +2423,9 @@ def render_deep_research_tab(result):
           <div class="forensic-threshold">Threshold: &gt; -1.78 = likely manipulator</div>
         </div>""", unsafe_allow_html=True)
         st.plotly_chart(_gauge_chart(m_result["score"], mc, "M-Score", -4, 0, -1.78, "⚠ -1.78 threshold"),
-                        use_container_width=True, config={"displayModeBar": False}, key="gauge_mscore")
+                        use_container_width=True, config={"displayModeBar": False}, key=f"gauge_mscore_{ticker}")
         st.plotly_chart(_component_waterfall(m_result["components"], "Weighted contributions", mc),
-                        use_container_width=True, config={"displayModeBar": False}, key="bar_mscore")
+                        use_container_width=True, config={"displayModeBar": False}, key=f"bar_mscore_{ticker}")
         if m_result["red_flags"]:
             st.markdown(f"<div style='font-family:JetBrains Mono,monospace;font-size:0.68rem;color:#ef4444;margin:10px 0 5px;'>🚩 {len(m_result['red_flags'])} component(s) above threshold</div>", unsafe_allow_html=True)
         rows = "".join(
@@ -2057,9 +2450,9 @@ def render_deep_research_tab(result):
           <div class="forensic-threshold">&lt;1.81 distress · 1.81–2.99 grey · &gt;2.99 safe</div>
         </div>""", unsafe_allow_html=True)
         st.plotly_chart(_gauge_chart(z_result["score"], zc, "Z-Score", 0, 5, 1.81, "⚠ 1.81 distress zone"),
-                        use_container_width=True, config={"displayModeBar": False}, key="gauge_zscore")
+                        use_container_width=True, config={"displayModeBar": False}, key=f"gauge_zscore_{ticker}")
         st.plotly_chart(_component_waterfall(z_result["components"], "Weighted contributions", zc),
-                        use_container_width=True, config={"displayModeBar": False}, key="bar_zscore")
+                        use_container_width=True, config={"displayModeBar": False}, key=f"bar_zscore_{ticker}")
         rows = "".join(
             f"<tr><td class='comp-mono'>{k}</td>"
             f"<td class='comp-mono' style='color:{'#34d399' if v['value']>0 else '#f87171'};'>{v['value']:.4f}</td>"
@@ -2129,7 +2522,7 @@ def render_deep_research_tab(result):
         if gov.get("sources_checked"):
             st.caption(f"Sources: {', '.join(gov['sources_checked'][:5])}")
 
-    if st.button("🔄 Re-run Governance Scan", key="gov_refresh"):
+    if st.button("🔄 Re-run Governance Scan", key=f"gov_refresh_{ticker}"):
         del st.session_state[gov_key]; st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -2221,7 +2614,7 @@ def render_deep_research_tab(result):
               <div class="flag-insight">💡 {ft.get('insight','')}</div>
             </div>""", unsafe_allow_html=True)
 
-    if st.button("🔄 Re-run Concall Analysis", key="cc_refresh"):
+    if st.button("🔄 Re-run Concall Analysis", key=f"cc_refresh_{ticker}"):
         del st.session_state[cc_key]; st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -2251,7 +2644,7 @@ def render_deep_research_tab(result):
     col_v1, col_v2 = st.columns(2)
     with col_v1:
         radar = _verdict_radar(verdict["score_components"])
-        if radar: st.plotly_chart(radar, use_container_width=True, config={"displayModeBar": False}, key="radar_verdict")
+        if radar: st.plotly_chart(radar, use_container_width=True, config={"displayModeBar": False}, key=f"radar_verdict_{ticker}")
 
     with col_v2:
         st.markdown("<div style='padding-top:1.5rem;'>", unsafe_allow_html=True)
@@ -2283,32 +2676,36 @@ def render_deep_research_tab(result):
 
 # ══════════════════════════════════════════════════════════════
 #  INTEGRATION HELPER  — render_deep_research_selector
-#  Independent search: full NSE autocomplete + analysed-list tab
+#  BUG FIX: "Search Another Company" button clears result state
+#  so users can run deep research on multiple companies without
+#  refreshing the page.
 # ══════════════════════════════════════════════════════════════
 
 def render_deep_research_selector(all_results=None):
     """
     Call inside `with tab_deep_research:` in app.py.
 
-    TWO modes via tabs:
-      1. 🔍 Search Any Company  — full NSE ~2000+ autocomplete dropdown,
-         independent of the main Search & Analyse tab
-      2. 📋 From Analysed List  — pick from companies already run through
-         the red-flag pipeline (all_results from app.py)
+    THREE tabs:
+      1. 🔍 Search Any Company  — full NSE autocomplete
+      2. 📋 From Analysed List  — companies already run through red-flag pipeline
+      3. ℹ️ Info  — plain-English explanation of Beneish M-Score & Altman Z-Score
     """
     st.markdown(DEEP_RESEARCH_CSS, unsafe_allow_html=True)
 
-    mode_tab1, mode_tab2 = st.tabs([
+    mode_tab1, mode_tab2, mode_tab3 = st.tabs([
         "🔍  Search Any NSE Company",
         "📋  From Analysed List",
+        "ℹ️  What are these scores?",
     ])
 
     # ─────────────────────────────────────────────────────────
     #  MODE 1 — Full NSE autocomplete search
+    #  BUG FIX: Added "Search Another Company" reset button
+    #           that clears per-ticker session state so users
+    #           can run back-to-back analyses without refreshing.
     # ─────────────────────────────────────────────────────────
     with mode_tab1:
 
-        # Header card
         st.markdown("""
         <div class="dr-search-box">
           <div class="dr-search-title">
@@ -2317,7 +2714,6 @@ def render_deep_research_selector(all_results=None):
           </div>
         </div>""", unsafe_allow_html=True)
 
-        # Load the NSE list (cached for 24 h)
         with st.spinner("Loading NSE company list…"):
             nse_dict = _load_nse_company_list()
 
@@ -2329,74 +2725,91 @@ def render_deep_research_selector(all_results=None):
         )
         st.caption(source_note)
 
-        # ── Company selector (searchable dropdown) ────────────
-        company_labels = ["— select a company —"] + sorted(nse_dict.keys())
-        selected_label = st.selectbox(
-            "Search by company name or ticker symbol",
-            options=company_labels,
-            index=0,
-            key="dr_nse_company_select",
-            help="Start typing a company name or NSE symbol to filter the list",
-        )
+        # ── If a result is already shown, offer "Search Another" ──
+        active_tk = st.session_state.get("dr_active_ticker")
+        if active_tk and st.session_state.get(f"dr_direct_done_{active_tk}"):
+            result_shown = st.session_state.get(f"dr_direct_result_{active_tk}")
+            shown_name = result_shown.get("name", active_tk) if result_shown else active_tk
 
-        selected_ticker = nse_dict.get(selected_label)  # None if placeholder selected
+            st.markdown(f"""
+            <div class="reset-search-bar">
+              <div>
+                <div class="reset-search-bar-text">Currently showing deep research for:</div>
+                <div class="reset-search-bar-ticker">{shown_name} ({active_tk})</div>
+              </div>
+            </div>""", unsafe_allow_html=True)
 
-        # ── Optional: override to BSE ─────────────────────────
-        col_exc, col_spacer = st.columns([1, 3])
-        with col_exc:
-            use_bse = st.checkbox("Use BSE (.BO) instead of NSE", key="dr_use_bse")
-        if selected_ticker and use_bse:
-            selected_ticker = selected_ticker.replace(".NS", ".BO")
+            if st.button("🔄 Search Another Company", key="dr_reset_btn", use_container_width=False):
+                # Clear all per-ticker state for the previous company
+                for key in [
+                    f"gov_{active_tk}", f"cc_{active_tk}",
+                    f"dr_direct_result_{active_tk}",
+                    f"dr_direct_done_{active_tk}",
+                ]:
+                    st.session_state.pop(key, None)
+                st.session_state.pop("dr_active_ticker", None)
+                st.rerun()
 
-        # Show resolved ticker preview
-        if selected_ticker:
-            st.markdown(
-                f"<div style='font-family:JetBrains Mono,monospace;font-size:0.68rem;"
-                f"color:#5a6e8c;margin:4px 0 12px;'>Ticker: {selected_ticker}</div>",
-                unsafe_allow_html=True,
+        else:
+            # ── Company selector ──────────────────────────────
+            company_labels = ["— select a company —"] + sorted(nse_dict.keys())
+            selected_label = st.selectbox(
+                "Search by company name or ticker symbol",
+                options=company_labels,
+                index=0,
+                key="dr_nse_company_select",
+                help="Start typing a company name or NSE symbol to filter the list",
             )
 
-        # ── Run button ────────────────────────────────────────
-        col_btn, col_note = st.columns([1, 3])
-        with col_btn:
-            direct_run = st.button(
-                "🔬 Run Deep Research →",
-                type="primary",
-                key="dr_direct_run_btn",
-                disabled=not bool(selected_ticker),
-            )
-        with col_note:
-            st.caption(
-                "Fetches live data via yfinance · Beneish M-Score · Altman Z-Score "
-                "· Governance scan · Concall intelligence · ~30–60 sec"
-            )
+            selected_ticker = nse_dict.get(selected_label)
 
-        # ── Fetch + store result ──────────────────────────────
-        if direct_run and selected_ticker:
-            # Clear any previous result for this ticker so sections re-run
-            for key in [f"gov_{selected_ticker}", f"cc_{selected_ticker}",
-                        f"dr_direct_result_{selected_ticker}",
-                        f"dr_direct_done_{selected_ticker}"]:
-                st.session_state.pop(key, None)
+            col_exc, col_spacer = st.columns([1, 3])
+            with col_exc:
+                use_bse = st.checkbox("Use BSE (.BO) instead of NSE", key="dr_use_bse")
+            if selected_ticker and use_bse:
+                selected_ticker = selected_ticker.replace(".NS", ".BO")
 
-            with st.spinner(f"Fetching company data for {selected_ticker}…"):
-                result, err = _fetch_company_data_for_deep_research(selected_ticker)
+            if selected_ticker:
+                st.markdown(
+                    f"<div style='font-family:JetBrains Mono,monospace;font-size:0.68rem;"
+                    f"color:#5a6e8c;margin:4px 0 12px;'>Ticker: {selected_ticker}</div>",
+                    unsafe_allow_html=True,
+                )
 
-            if err:
-                st.error(f"❌ {err}")
-            else:
-                st.session_state[f"dr_direct_result_{selected_ticker}"] = result
-                st.session_state[f"dr_direct_done_{selected_ticker}"] = True
+            col_btn, col_note = st.columns([1, 3])
+            with col_btn:
+                direct_run = st.button(
+                    "🔬 Run Deep Research →",
+                    type="primary",
+                    key="dr_direct_run_btn",
+                    disabled=not bool(selected_ticker),
+                )
+            with col_note:
+                st.caption(
+                    "Fetches live data via yfinance · Beneish M-Score · Altman Z-Score "
+                    "· Governance scan · Concall intelligence · ~30–60 sec"
+                )
+
+            if direct_run and selected_ticker:
+                # Clear any lingering state for this ticker
+                for key in [f"gov_{selected_ticker}", f"cc_{selected_ticker}",
+                            f"dr_direct_result_{selected_ticker}",
+                            f"dr_direct_done_{selected_ticker}"]:
+                    st.session_state.pop(key, None)
+
+                with st.spinner(f"Fetching company data for {selected_ticker}…"):
+                    result, err = _fetch_company_data_for_deep_research(selected_ticker)
+
+                if err:
+                    st.error(f"❌ {err}")
+                else:
+                    st.session_state[f"dr_direct_result_{selected_ticker}"] = result
+                    st.session_state[f"dr_direct_done_{selected_ticker}"] = True
+                    st.session_state["dr_active_ticker"] = selected_ticker
+                    st.rerun()
 
         # ── Render result if available ────────────────────────
-        # Show the most recently triggered ticker's result
-        active_tk = None
-        for k, v in list(st.session_state.items()):
-            if k.startswith("dr_direct_done_") and v:
-                active_tk = k.replace("dr_direct_done_", "")
-                break
-
-        if active_tk:
+        if active_tk and st.session_state.get(f"dr_direct_done_{active_tk}"):
             result = st.session_state.get(f"dr_direct_result_{active_tk}")
             if result:
                 st.divider()
@@ -2445,3 +2858,9 @@ def render_deep_research_selector(all_results=None):
         if run_btn or dr_key in st.session_state:
             st.session_state[dr_key] = True
             render_deep_research_tab(selected_result)
+
+    # ─────────────────────────────────────────────────────────
+    #  MODE 3 — Info tab (NEW)
+    # ─────────────────────────────────────────────────────────
+    with mode_tab3:
+        render_info_tab()
