@@ -826,7 +826,7 @@ html, body, .stApp {
 .ticker-track {
     display: flex;
     gap: 2.5rem;
-    animation: tickerScroll 35s linear infinite;
+    animation: tickerScroll 60s linear infinite;
     white-space: nowrap;
     width: max-content;
 }
@@ -836,7 +836,7 @@ html, body, .stApp {
 }
 .ticker-item {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.65rem;
+    font-size: 0.9rem;
     color: #4b5563;
     text-transform: uppercase;
     letter-spacing: 2px;
