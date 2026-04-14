@@ -1571,246 +1571,250 @@ def _check_api_keys():
 
 def render_info_tab():
     """Renders the ℹ️ Info tab with plain-English explanations of Beneish M-Score and Altman Z-Score."""
-    st.markdown("""
-    <div class="info-hero">
-      <div class="info-model-year" style="display:inline-block;margin-bottom:0.8rem;">📖 ACADEMIC MODEL GUIDE</div>
-      <div class="info-hero-title">What do these scores actually mean?</div>
-      <div class="info-hero-sub">
-        Beneish M-Score and Altman Z-Score are academic models used by forensic accountants and
-        equity analysts worldwide. Here's what they measure, how to read them, and what their
-        limitations are — in plain English.
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # ── BENEISH M-SCORE ───────────────────────────────────────
-    st.markdown("""
-    <div class="info-model-card purple">
-      <div class="info-model-header">
-        <div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:#a78bfa;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">MODEL 01</div>
-          <div class="info-model-title">🟣 Beneish M-Score</div>
-        </div>
-        <div class="info-model-year">Messod Beneish · 1999</div>
-      </div>
-
-      <div class="info-model-what">What it detects</div>
-      <div class="info-model-body">
-        The Beneish M-Score is a mathematical model designed to detect whether a company has
-        <strong style="color:#a78bfa;">manipulated its reported earnings</strong>. It was developed by
-        Professor Messod Beneish at Indiana University after studying companies that were later found
-        guilty of financial fraud by the SEC. The model looks for patterns in financial data that
-        are common in companies that inflate revenue, delay expenses, or otherwise doctor their books.
-        <br><br>
-        Think of it like a lie-detector test for accounting — it doesn't prove fraud, but a
-        high score means the numbers behave in ways that are statistically unusual and deserve scrutiny.
-      </div>
-
-      <div class="info-model-what">How the score works</div>
-      <div class="info-threshold-box">
-        <div class="info-threshold-item">
-          <div class="info-threshold-label" style="color:#22c55e;">Below -2.22</div>
-          <div class="info-threshold-value" style="color:#22c55e;">🟢 Clean</div>
-          <div style="font-family:'DM Sans',sans-serif;font-size:0.75rem;color:#4b6080;margin-top:3px;">Unlikely manipulator</div>
-        </div>
-        <div class="info-threshold-item">
-          <div class="info-threshold-label" style="color:#f59e0b;">-2.22 to -1.78</div>
-          <div class="info-threshold-value" style="color:#f59e0b;">🟡 Grey Zone</div>
-          <div style="font-family:'DM Sans',sans-serif;font-size:0.75rem;color:#4b6080;margin-top:3px;">Monitor closely</div>
-        </div>
-        <div class="info-threshold-item">
-          <div class="info-threshold-label" style="color:#ef4444;">Above -1.78</div>
-          <div class="info-threshold-value" style="color:#ef4444;">🔴 Red Flag</div>
-          <div style="font-family:'DM Sans',sans-serif;font-size:0.75rem;color:#4b6080;margin-top:3px;">Likely manipulator</div>
-        </div>
-      </div>
-
-      <div class="info-model-what">The 8 factors it measures</div>
-      <div class="info-factors-grid">
-        <div class="info-factor">
-          <div class="info-factor-code" style="color:#a78bfa;">DSRI</div>
-          <div class="info-factor-name">Days Sales Receivable Index — are customers paying slower (a channel stuffing signal)?</div>
-          <div class="info-factor-flag">Flag if &gt; 1.465</div>
-        </div>
-        <div class="info-factor">
-          <div class="info-factor-code" style="color:#a78bfa;">GMI</div>
-          <div class="info-factor-name">Gross Margin Index — are margins deteriorating, creating pressure to manipulate?</div>
-          <div class="info-factor-flag">Flag if &gt; 1.193</div>
-        </div>
-        <div class="info-factor">
-          <div class="info-factor-code" style="color:#a78bfa;">AQI</div>
-          <div class="info-factor-name">Asset Quality Index — are non-cash, hard-to-value assets growing on the balance sheet?</div>
-          <div class="info-factor-flag">Flag if &gt; 1.254</div>
-        </div>
-        <div class="info-factor">
-          <div class="info-factor-code" style="color:#a78bfa;">SGI</div>
-          <div class="info-factor-name">Sales Growth Index — high growth creates pressure to keep the streak going artificially.</div>
-          <div class="info-factor-flag">Flag if &gt; 1.607</div>
-        </div>
-        <div class="info-factor">
-          <div class="info-factor-code" style="color:#a78bfa;">DEPI</div>
-          <div class="info-factor-name">Depreciation Index — is the company slowing depreciation to boost reported profit?</div>
-          <div class="info-factor-flag">Flag if &gt; 1.077</div>
-        </div>
-        <div class="info-factor">
-          <div class="info-factor-code" style="color:#a78bfa;">SGAI</div>
-          <div class="info-factor-name">Sales, General & Admin Index — disproportionate overhead growth vs revenue.</div>
-          <div class="info-factor-flag">Flag if &gt; 1.041</div>
-        </div>
-        <div class="info-factor">
-          <div class="info-factor-code" style="color:#a78bfa;">LVGI</div>
-          <div class="info-factor-name">Leverage Index — rising debt burden increases pressure to hit profit targets.</div>
-          <div class="info-factor-flag">Flag if &gt; 1.111</div>
-        </div>
-        <div class="info-factor">
-          <div class="info-factor-code" style="color:#a78bfa;">TATA</div>
-          <div class="info-factor-name">Total Accruals to Total Assets — the most powerful signal. Profit not backed by cash.</div>
-          <div class="info-factor-flag">Flag if &gt; 0.031 · Weight: 4.68×</div>
-        </div>
-      </div>
-
-      <div class="info-limitation">
-        <strong>⚠️ Limitations to keep in mind:</strong> The model was trained on US companies from the 1990s.
-        It works well for manufacturing and trading companies but is less reliable for banks, NBFCs,
-        and other financial services companies (which have structural reasons for high accruals).
-        A high M-Score is a signal to investigate further — not proof of fraud.
-        Many legitimate high-growth companies may score poorly simply due to rapid business expansion.
-      </div>
-
-      <div class="info-link-row">
-        <a class="info-link" href="https://onlinelibrary.wiley.com/doi/10.1111/j.1911-3846.1999.tb00586.x" target="_blank">📄 Original Paper (Beneish 1999)</a>
-        <a class="info-link" href="https://www.investopedia.com/terms/b/beneish-m-score.asp" target="_blank">📖 Investopedia Explainer</a>
-        <a class="info-link" href="https://www.screener.in/explore/" target="_blank">🔍 See it on Screener.in</a>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # ── ALTMAN Z-SCORE ────────────────────────────────────────
-    st.markdown("""
-    <div class="info-model-card red">
-      <div class="info-model-header">
-        <div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:#f87171;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">MODEL 02</div>
-          <div class="info-model-title">🔴 Altman Z-Score</div>
-        </div>
-        <div class="info-model-year">Edward Altman · 1968</div>
-      </div>
-
-      <div class="info-model-what">What it detects</div>
-      <div class="info-model-body">
-        The Altman Z-Score predicts the probability that a company will go <strong style="color:#f87171;">bankrupt within the next two years</strong>.
-        It was created by Professor Edward Altman at NYU Stern School of Business in 1968 — and despite
-        being over 50 years old, it remains one of the most widely used tools in credit risk analysis.
-        <br><br>
-        It combines five financial ratios, each weighted differently, to produce a single number.
-        The lower the score, the closer a company is to potential financial distress.
-        Auditors, banks, and institutional investors routinely use this as a first-pass filter
-        before extending credit or evaluating solvency.
-      </div>
-
-      <div class="info-model-what">How the score works</div>
-      <div class="info-threshold-box">
-        <div class="info-threshold-item">
-          <div class="info-threshold-label" style="color:#ef4444;">Below 1.81</div>
-          <div class="info-threshold-value" style="color:#ef4444;">🔴 Distress Zone</div>
-          <div style="font-family:'DM Sans',sans-serif;font-size:0.75rem;color:#4b6080;margin-top:3px;">High bankruptcy risk</div>
-        </div>
-        <div class="info-threshold-item">
-          <div class="info-threshold-label" style="color:#f59e0b;">1.81 to 2.99</div>
-          <div class="info-threshold-value" style="color:#f59e0b;">🟡 Grey Zone</div>
-          <div style="font-family:'DM Sans',sans-serif;font-size:0.75rem;color:#4b6080;margin-top:3px;">Financial stress possible</div>
-        </div>
-        <div class="info-threshold-item">
-          <div class="info-threshold-label" style="color:#22c55e;">Above 2.99</div>
-          <div class="info-threshold-value" style="color:#22c55e;">🟢 Safe Zone</div>
-          <div style="font-family:'DM Sans',sans-serif;font-size:0.75rem;color:#4b6080;margin-top:3px;">Financially healthy</div>
-        </div>
-      </div>
-
-      <div class="info-model-what">The 5 factors it measures</div>
-      <div class="info-factors-grid">
-        <div class="info-factor">
-          <div class="info-factor-code" style="color:#f87171;">X1 · Weight 1.2×</div>
-          <div class="info-factor-name">Working Capital / Total Assets — short-term liquidity. Negative means the company can't easily pay near-term bills.</div>
-        </div>
-        <div class="info-factor">
-          <div class="info-factor-code" style="color:#f87171;">X2 · Weight 1.4×</div>
-          <div class="info-factor-name">Retained Earnings / Total Assets — long-run profitability and reinvestment. Young companies naturally score low here.</div>
-        </div>
-        <div class="info-factor">
-          <div class="info-factor-code" style="color:#f87171;">X3 · Weight 3.3×</div>
-          <div class="info-factor-name">EBIT / Total Assets — the most heavily weighted factor. Core operating earnings power relative to asset base.</div>
-        </div>
-        <div class="info-factor">
-          <div class="info-factor-code" style="color:#f87171;">X4 · Weight 0.6×</div>
-          <div class="info-factor-name">Market Cap / Total Liabilities — market's confidence in the company vs its debt load.</div>
-        </div>
-        <div class="info-factor">
-          <div class="info-factor-code" style="color:#f87171;">X5 · Weight 1.0×</div>
-          <div class="info-factor-name">Revenue / Total Assets — asset efficiency, also known as asset turnover. How well assets generate sales.</div>
-        </div>
-      </div>
-
-      <div class="info-model-what">M-Score vs Z-Score at a glance</div>
-      <div class="info-comparison">
-        <div class="info-cmp-cell">
-          <div class="info-cmp-label">Beneish M-Score</div>
-          <div class="info-cmp-text">
-            • Detects <strong style="color:#a78bfa;">earnings manipulation</strong><br>
-            • Looks at accounting quality<br>
-            • 8 factors, all from P&L + BS<br>
-            • Score above -1.78 = red flag<br>
-            • Best for: non-financial companies
+    try:
+        st.markdown("""
+        <div class="info-hero">
+          <div class="info-model-year" style="display:inline-block;margin-bottom:0.8rem;">📖 ACADEMIC MODEL GUIDE</div>
+          <div class="info-hero-title">What do these scores actually mean?</div>
+          <div class="info-hero-sub">
+            Beneish M-Score and Altman Z-Score are academic models used by forensic accountants and
+            equity analysts worldwide. Here's what they measure, how to read them, and what their
+            limitations are — in plain English.
           </div>
         </div>
-        <div class="info-cmp-cell">
-          <div class="info-cmp-label">Altman Z-Score</div>
-          <div class="info-cmp-text">
-            • Detects <strong style="color:#f87171;">financial distress / bankruptcy risk</strong><br>
-            • Looks at solvency & liquidity<br>
-            • 5 factors, uses market cap too<br>
-            • Score below 1.81 = distress zone<br>
-            • Best for: non-financial companies
+        """, unsafe_allow_html=True)
+
+        # ── BENEISH M-SCORE ───────────────────────────────────────
+        st.markdown("""
+        <div class="info-model-card purple">
+          <div class="info-model-header">
+            <div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:#a78bfa;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">MODEL 01</div>
+              <div class="info-model-title">🟣 Beneish M-Score</div>
+            </div>
+            <div class="info-model-year">Messod Beneish · 1999</div>
+          </div>
+
+          <div class="info-model-what">What it detects</div>
+          <div class="info-model-body">
+            The Beneish M-Score is a mathematical model designed to detect whether a company has
+            <strong style="color:#a78bfa;">manipulated its reported earnings</strong>. It was developed by
+            Professor Messod Beneish at Indiana University after studying companies that were later found
+            guilty of financial fraud by the SEC. The model looks for patterns in financial data that
+            are common in companies that inflate revenue, delay expenses, or otherwise doctor their books.
+            <br><br>
+            Think of it like a lie-detector test for accounting — it doesn't prove fraud, but a
+            high score means the numbers behave in ways that are statistically unusual and deserve scrutiny.
+          </div>
+
+          <div class="info-model-what">How the score works</div>
+          <div class="info-threshold-box">
+            <div class="info-threshold-item">
+              <div class="info-threshold-label" style="color:#22c55e;">Below -2.22</div>
+              <div class="info-threshold-value" style="color:#22c55e;">🟢 Clean</div>
+              <div style="font-family:'DM Sans',sans-serif;font-size:0.75rem;color:#4b6080;margin-top:3px;">Unlikely manipulator</div>
+            </div>
+            <div class="info-threshold-item">
+              <div class="info-threshold-label" style="color:#f59e0b;">-2.22 to -1.78</div>
+              <div class="info-threshold-value" style="color:#f59e0b;">🟡 Grey Zone</div>
+              <div style="font-family:'DM Sans',sans-serif;font-size:0.75rem;color:#4b6080;margin-top:3px;">Monitor closely</div>
+            </div>
+            <div class="info-threshold-item">
+              <div class="info-threshold-label" style="color:#ef4444;">Above -1.78</div>
+              <div class="info-threshold-value" style="color:#ef4444;">🔴 Red Flag</div>
+              <div style="font-family:'DM Sans',sans-serif;font-size:0.75rem;color:#4b6080;margin-top:3px;">Likely manipulator</div>
+            </div>
+          </div>
+
+          <div class="info-model-what">The 8 factors it measures</div>
+          <div class="info-factors-grid">
+            <div class="info-factor">
+              <div class="info-factor-code" style="color:#a78bfa;">DSRI</div>
+              <div class="info-factor-name">Days Sales Receivable Index — are customers paying slower (a channel stuffing signal)?</div>
+              <div class="info-factor-flag">Flag if &gt; 1.465</div>
+            </div>
+            <div class="info-factor">
+              <div class="info-factor-code" style="color:#a78bfa;">GMI</div>
+              <div class="info-factor-name">Gross Margin Index — are margins deteriorating, creating pressure to manipulate?</div>
+              <div class="info-factor-flag">Flag if &gt; 1.193</div>
+            </div>
+            <div class="info-factor">
+              <div class="info-factor-code" style="color:#a78bfa;">AQI</div>
+              <div class="info-factor-name">Asset Quality Index — are non-cash, hard-to-value assets growing on the balance sheet?</div>
+              <div class="info-factor-flag">Flag if &gt; 1.254</div>
+            </div>
+            <div class="info-factor">
+              <div class="info-factor-code" style="color:#a78bfa;">SGI</div>
+              <div class="info-factor-name">Sales Growth Index — high growth creates pressure to keep the streak going artificially.</div>
+              <div class="info-factor-flag">Flag if &gt; 1.607</div>
+            </div>
+            <div class="info-factor">
+              <div class="info-factor-code" style="color:#a78bfa;">DEPI</div>
+              <div class="info-factor-name">Depreciation Index — is the company slowing depreciation to boost reported profit?</div>
+              <div class="info-factor-flag">Flag if &gt; 1.077</div>
+            </div>
+            <div class="info-factor">
+              <div class="info-factor-code" style="color:#a78bfa;">SGAI</div>
+              <div class="info-factor-name">Sales, General & Admin Index — disproportionate overhead growth vs revenue.</div>
+              <div class="info-factor-flag">Flag if &gt; 1.041</div>
+            </div>
+            <div class="info-factor">
+              <div class="info-factor-code" style="color:#a78bfa;">LVGI</div>
+              <div class="info-factor-name">Leverage Index — rising debt burden increases pressure to hit profit targets.</div>
+              <div class="info-factor-flag">Flag if &gt; 1.111</div>
+            </div>
+            <div class="info-factor">
+              <div class="info-factor-code" style="color:#a78bfa;">TATA</div>
+              <div class="info-factor-name">Total Accruals to Total Assets — the most powerful signal. Profit not backed by cash.</div>
+              <div class="info-factor-flag">Flag if &gt; 0.031 · Weight: 4.68×</div>
+            </div>
+          </div>
+
+          <div class="info-limitation">
+            <strong>⚠️ Limitations to keep in mind:</strong> The model was trained on US companies from the 1990s.
+            It works well for manufacturing and trading companies but is less reliable for banks, NBFCs,
+            and other financial services companies (which have structural reasons for high accruals).
+            A high M-Score is a signal to investigate further — not proof of fraud.
+            Many legitimate high-growth companies may score poorly simply due to rapid business expansion.
+          </div>
+
+          <div class="info-link-row">
+            <a class="info-link" href="https://onlinelibrary.wiley.com/doi/10.1111/j.1911-3846.1999.tb00586.x" target="_blank">📄 Original Paper (Beneish 1999)</a>
+            <a class="info-link" href="https://www.investopedia.com/terms/b/beneish-m-score.asp" target="_blank">📖 Investopedia Explainer</a>
+            <a class="info-link" href="https://www.screener.in/explore/" target="_blank">🔍 See it on Screener.in</a>
           </div>
         </div>
-      </div>
+        """, unsafe_allow_html=True)
 
-      <div class="info-limitation">
-        <strong>⚠️ Limitations to keep in mind:</strong> The Z-Score was originally calibrated on US manufacturing
-        companies. It is <strong>not reliable for banks, NBFCs, insurance companies, or REITs</strong> because
-        these businesses are designed to carry high leverage by nature (that's the business model).
-        We display an "N/A" warning when we detect a financial sector company. Additionally,
-        very early-stage or pre-revenue companies will almost always score in the distress zone
-        even if they are well-funded — use discretion.
-      </div>
+        # ── ALTMAN Z-SCORE ────────────────────────────────────────
+        st.markdown("""
+        <div class="info-model-card red">
+          <div class="info-model-header">
+            <div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:#f87171;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">MODEL 02</div>
+              <div class="info-model-title">🔴 Altman Z-Score</div>
+            </div>
+            <div class="info-model-year">Edward Altman · 1968</div>
+          </div>
 
-      <div class="info-link-row">
-        <a class="info-link" href="https://www.jstor.org/stable/2978933" target="_blank">📄 Original Paper (Altman 1968)</a>
-        <a class="info-link" href="https://www.investopedia.com/terms/a/altman.asp" target="_blank">📖 Investopedia Explainer</a>
-        <a class="info-link" href="https://pages.stern.nyu.edu/~ealtman/" target="_blank">🎓 Altman's NYU Page</a>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+          <div class="info-model-what">What it detects</div>
+          <div class="info-model-body">
+            The Altman Z-Score predicts the probability that a company will go <strong style="color:#f87171;">bankrupt within the next two years</strong>.
+            It was created by Professor Edward Altman at NYU Stern School of Business in 1968 — and despite
+            being over 50 years old, it remains one of the most widely used tools in credit risk analysis.
+            <br><br>
+            It combines five financial ratios, each weighted differently, to produce a single number.
+            The lower the score, the closer a company is to potential financial distress.
+            Auditors, banks, and institutional investors routinely use this as a first-pass filter
+            before extending credit or evaluating solvency.
+          </div>
 
-    # ── QUICK REFERENCE ──────────────────────────────────────
-    st.markdown("""
-    <div style="background:#070c18;border:1px solid #192138;border-radius:16px;padding:1.6rem 1.8rem;margin-top:0.5rem;">
-      <div style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:#374151;text-transform:uppercase;letter-spacing:2px;margin-bottom:1rem;">HOW THIS TOOL USES THEM</div>
-      <div style="font-family:'DM Sans',sans-serif;font-size:0.88rem;color:#4b6080;line-height:1.85;">
-        In the <strong style="color:#8492b0;">Deep Research</strong> tab, we run both models automatically using live financial
-        data from Yahoo Finance. The Beneish M-Score and Altman Z-Score each contribute
-        to the <strong style="color:#8492b0;">Final Verdict</strong> composite score alongside the AI governance scan,
-        concall credibility analysis, and our 18 proprietary red-flag checks.
-        <br><br>
-        Neither model alone should determine an investment decision. Use them as one layer in
-        a broader forensic investigation — alongside management commentary, auditor qualifications,
-        and sectoral context.
-      </div>
-      <div style="margin-top:1rem;font-family:'JetBrains Mono',monospace;font-size:0.62rem;color:#1e2a40;border-top:1px solid #111827;padding-top:0.8rem;">
-        Data source: Yahoo Finance (yfinance) · Not investment advice · Always verify with official BSE/NSE filings
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+          <div class="info-model-what">How the score works</div>
+          <div class="info-threshold-box">
+            <div class="info-threshold-item">
+              <div class="info-threshold-label" style="color:#ef4444;">Below 1.81</div>
+              <div class="info-threshold-value" style="color:#ef4444;">🔴 Distress Zone</div>
+              <div style="font-family:'DM Sans',sans-serif;font-size:0.75rem;color:#4b6080;margin-top:3px;">High bankruptcy risk</div>
+            </div>
+            <div class="info-threshold-item">
+              <div class="info-threshold-label" style="color:#f59e0b;">1.81 to 2.99</div>
+              <div class="info-threshold-value" style="color:#f59e0b;">🟡 Grey Zone</div>
+              <div style="font-family:'DM Sans',sans-serif;font-size:0.75rem;color:#4b6080;margin-top:3px;">Financial stress possible</div>
+            </div>
+            <div class="info-threshold-item">
+              <div class="info-threshold-label" style="color:#22c55e;">Above 2.99</div>
+              <div class="info-threshold-value" style="color:#22c55e;">🟢 Safe Zone</div>
+              <div style="font-family:'DM Sans',sans-serif;font-size:0.75rem;color:#4b6080;margin-top:3px;">Financially healthy</div>
+            </div>
+          </div>
+
+          <div class="info-model-what">The 5 factors it measures</div>
+          <div class="info-factors-grid">
+            <div class="info-factor">
+              <div class="info-factor-code" style="color:#f87171;">X1 · Weight 1.2×</div>
+              <div class="info-factor-name">Working Capital / Total Assets — short-term liquidity. Negative means the company can't easily pay near-term bills.</div>
+            </div>
+            <div class="info-factor">
+              <div class="info-factor-code" style="color:#f87171;">X2 · Weight 1.4×</div>
+              <div class="info-factor-name">Retained Earnings / Total Assets — long-run profitability and reinvestment. Young companies naturally score low here.</div>
+            </div>
+            <div class="info-factor">
+              <div class="info-factor-code" style="color:#f87171;">X3 · Weight 3.3×</div>
+              <div class="info-factor-name">EBIT / Total Assets — the most heavily weighted factor. Core operating earnings power relative to asset base.</div>
+            </div>
+            <div class="info-factor">
+              <div class="info-factor-code" style="color:#f87171;">X4 · Weight 0.6×</div>
+              <div class="info-factor-name">Market Cap / Total Liabilities — market's confidence in the company vs its debt load.</div>
+            </div>
+            <div class="info-factor">
+              <div class="info-factor-code" style="color:#f87171;">X5 · Weight 1.0×</div>
+              <div class="info-factor-name">Revenue / Total Assets — asset efficiency, also known as asset turnover. How well assets generate sales.</div>
+            </div>
+          </div>
+
+          <div class="info-model-what">M-Score vs Z-Score at a glance</div>
+          <div class="info-comparison">
+            <div class="info-cmp-cell">
+              <div class="info-cmp-label">Beneish M-Score</div>
+              <div class="info-cmp-text">
+                • Detects <strong style="color:#a78bfa;">earnings manipulation</strong><br>
+                • Looks at accounting quality<br>
+                • 8 factors, all from P&L + BS<br>
+                • Score above -1.78 = red flag<br>
+                • Best for: non-financial companies
+              </div>
+            </div>
+            <div class="info-cmp-cell">
+              <div class="info-cmp-label">Altman Z-Score</div>
+              <div class="info-cmp-text">
+                • Detects <strong style="color:#f87171;">financial distress / bankruptcy risk</strong><br>
+                • Looks at solvency & liquidity<br>
+                • 5 factors, uses market cap too<br>
+                • Score below 1.81 = distress zone<br>
+                • Best for: non-financial companies
+              </div>
+            </div>
+          </div>
+
+          <div class="info-limitation">
+            <strong>⚠️ Limitations to keep in mind:</strong> The Z-Score was originally calibrated on US manufacturing
+            companies. It is <strong>not reliable for banks, NBFCs, insurance companies, or REITs</strong> because
+            these businesses are designed to carry high leverage by nature (that's the business model).
+            We display an "N/A" warning when we detect a financial sector company. Additionally,
+            very early-stage or pre-revenue companies will almost always score in the distress zone
+            even if they are well-funded — use discretion.
+          </div>
+
+          <div class="info-link-row">
+            <a class="info-link" href="https://www.jstor.org/stable/2978933" target="_blank">📄 Original Paper (Altman 1968)</a>
+            <a class="info-link" href="https://www.investopedia.com/terms/a/altman.asp" target="_blank">📖 Investopedia Explainer</a>
+            <a class="info-link" href="https://pages.stern.nyu.edu/~ealtman/" target="_blank">🎓 Altman's NYU Page</a>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # ── QUICK REFERENCE ──────────────────────────────────────
+        st.markdown("""
+        <div style="background:#070c18;border:1px solid #192138;border-radius:16px;padding:1.6rem 1.8rem;margin-top:0.5rem;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:#374151;text-transform:uppercase;letter-spacing:2px;margin-bottom:1rem;">HOW THIS TOOL USES THEM</div>
+          <div style="font-family:'DM Sans',sans-serif;font-size:0.88rem;color:#4b6080;line-height:1.85;">
+            In the <strong style="color:#8492b0;">Deep Research</strong> tab, we run both models automatically using live financial
+            data from Yahoo Finance. The Beneish M-Score and Altman Z-Score each contribute
+            to the <strong style="color:#8492b0;">Final Verdict</strong> composite score alongside the AI governance scan,
+            concall credibility analysis, and our 18 proprietary red-flag checks.
+            <br><br>
+            Neither model alone should determine an investment decision. Use them as one layer in
+            a broader forensic investigation — alongside management commentary, auditor qualifications,
+            and sectoral context.
+          </div>
+          <div style="margin-top:1rem;font-family:'JetBrains Mono',monospace;font-size:0.62rem;color:#1e2a40;border-top:1px solid #111827;padding-top:0.8rem;">
+            Data source: Yahoo Finance (yfinance) · Not investment advice · Always verify with official BSE/NSE filings
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"Failed to render info tab: {str(e)}")
+        st.markdown("Please refresh the page or contact support if the issue persists.")
 
 
 # ──────────────────────────────────────────────────────────────
@@ -2700,7 +2704,7 @@ def render_deep_research_selector(all_results=None):
         "🔍  Search Any NSE Company",
         "📋  From Analysed List",
         "ℹ️  What are these scores?",
-    ])
+    ], key="dr_tabs_main")
 
     # ─────────────────────────────────────────────────────────
     #  MODE 1 — Full NSE autocomplete search
