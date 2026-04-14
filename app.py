@@ -1872,7 +1872,7 @@ elif st.session_state["current_page"] == "nav":
             risk score so you know exactly where to look first.
           </div>
           <div class="feat-tags">
-            <span class="feat-tag">10 Sectors</span>
+            <span class="feat-tag">15 Sectors</span>
             <span class="feat-tag">Heatmap View</span>
             <span class="feat-tag">Batch Analysis</span>
           </div>
