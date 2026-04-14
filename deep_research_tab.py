@@ -351,12 +351,17 @@ def call_gemini(prompt, system_prompt, max_tokens=2500):
         return None, "GEMINI_API_KEY not set"
     try:
         resp = requests.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}",
-                "system_instruction": {"parts": [{"text": system_prompt}]},
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.1},
-            },
-            timeout=60,
+    f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}",
+    json={
+        "system_instruction": {"parts": [{"text": system_prompt}]},
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "maxOutputTokens": max_tokens,
+            "temperature": 0.1
+        },
+    },
+    timeout=60,
+)
         )
         if not resp.ok:
             return None, f"Gemini HTTP {resp.status_code}: {resp.text[:250]}"
