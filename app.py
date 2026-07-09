@@ -660,6 +660,22 @@ st.set_page_config(
     menu_items={"About": "Forensic analysis tool for NSE-listed companies. Not investment advice."}
 )
 
+# ============================================================
+# APPLICATION CONTEXT
+# ============================================================
+
+if "current_workspace" not in st.session_state:
+    st.session_state.current_workspace = "financial"
+
+if "context" not in st.session_state:
+    st.session_state.context = {
+        "company": None,
+        "ticker": None,
+        "sector": None,
+        "universe": "Nifty 500",
+        "source": None,
+    }
+
 if "all_results_store" not in st.session_state:
     st.session_state["all_results_store"] = []
 if "current_page" not in st.session_state:
